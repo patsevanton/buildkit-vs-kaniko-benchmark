@@ -25,7 +25,7 @@ Operational notes for working with this repo's infrastructure (Yandex Cloud + Ma
 
 ## Известные нюансы
 
-- **Rootless BuildKit** требует unprivileged user namespaces на нодах. На Yandex Managed K8s обычно работает из коробки; если Job падает с `/proc/sys/user/max_user_namespaces` — нужен DaemonSet-воркараунд (см. официальный `examples/kubernetes/sysctl-userns.privileged.yaml` в moby/buildkit).
+- **Rootless-режим BuildKit** требует unprivileged user namespaces на нодах. На Yandex Managed K8s обычно работает из коробки; если Job падает с `/proc/sys/user/max_user_namespaces` — нужен DaemonSet-воркараунд (см. официальный `examples/kubernetes/sysctl-userns.privileged.yaml` в moby/buildkit).
 - Job-манифесты `benchmark/kaniko/kaniko-job.yaml` и `benchmark/buildkit/buildkit-job.yaml` **генерируются Terraform** из `.tftpl` (в них подставляется реальный `registry_id`). Они в `.gitignore` — не коммитить сгенерированные файлы.
 - После `terraform apply`, если вы меняете registry/кластер — перепримените джобы заново (`kubectl apply -f ...`), т.к. сгенерированные YAML обновятся.
 

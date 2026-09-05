@@ -6,8 +6,8 @@
 
 Классических ответов два — **Kaniko** и **BuildKit**:
 
-- **Kaniko** (`gcr.io/kaniko-project/executor`) — инструмент от Google, который собирает образы **без привилегированного режима**, запускаясь из обычного контейнера. Репозиторий [GoogleContainerTools/kaniko](https://github.com/GoogleContainerTools/kaniko) **архивирован владельцем 3 июня 2025 года** и доступен только для чтения — проект больше не развивается.
-- **BuildKit** (`moby/buildkit`) — движок сборки, который с 2022 года стоит за `docker build` в десктопном Docker (через `buildx`). В Kubernetes запускается rootless-режимом и может работать **daemonless**: один контейнер поднимает свой встроенный демон, собирает и пушит образ. Слава BuildKit — скорость (параллелизм по слоям, кэш, BuildKit-кэш-могут-переживать пересборки) и богатый синтаксис Dockerfile.
+- **Kaniko** (`gcr.io/kaniko-project/executor`) — инструмент от Google, который собирает образы **без privileged-контейнера**, запускаясь из обычного контейнера (внутри работает от root, но без привилегий ноды). Репозиторий [GoogleContainerTools/kaniko](https://github.com/GoogleContainerTools/kaniko) **архивирован владельцем 3 июня 2025 года** и доступен только для чтения — проект больше не развивается.
+- **BuildKit** (`moby/buildkit`) — движок сборки, который с 2022 года стоит за `docker build` в десктопном Docker (через `buildx`). В Kubernetes запускается в **rootless-режиме** (UID 1000) и daemonless: один контейнер поднимает свой встроенный демон, собирает и пушит образ. Слава BuildKit — скорость (параллелизм по слоям, кэш, BuildKit-кэш-могут-переживать пересборки) и богатый синтаксис Dockerfile.
 
 Этот репозиторий — **воспроизводимый бенчмарк** на Managed Yandex K8s: один и тот же multi-stage Dockerfile собирается обоими инструментами в одних и тех же условиях, с замером времени, потребления CPU/RAM и поведения кэша. Плюс — детальный разбор **преимуществ и недостатков** каждого подхода для продакшна.
 
@@ -18,7 +18,7 @@
 | **Время сборки** (без кэша / с кэшем) | `time-build.sh` замеряет `date +%s` до/после команды сборки внутри Job, пишет в `/artifacts/times.txt` |
 | **Потребление CPU/RAM** | node-exporter + cAdvisor → VictoriaMetrics → дашборд Grafana «Kaniko vs BuildKit» |
 | **Кэширование слоёв** | повторный запуск того же Dockerfile с включённым кэшем: kaniko `--cache` (registry-кэш), BuildKit (локальный buildkitd-кэш) |
-| **Особенности Managed Yandex K8s** | auth в Registry через IAM-токен из метаданных ноды, отсутствие потребности в privileged-контейнерах, rootless-режим BuildKit |
+| **Особенности Managed Yandex K8s** | auth в Registry через IAM-токен из метаданных ноды, отсутствие потребности в privileged-контейнерах, daemonless-сборка без docker.sock |
 | **Поддержка Dockerfile-синтаксиса** | один и тот же Dockerfile (apt, multi-stage, COPY --from) — сравнение совместимости |
 
 ## Архитектура стенда
@@ -63,8 +63,8 @@ Terraform поднимает:
 
 | Вариант | Образ | Запуск | Auth в registry |
 |---|---|---|---|
-| **Kaniko** | `gcr.io/kaniko-project/executor:v1.23.2-debug` | Job, обычный контейнер (`runAsRoot`, но без privileged) | IAM-токен из метаданных ноды → `config.json` в `/kaniko/.docker` |
-| **BuildKit** | `moby/buildkit:v0.32.2-rootless` | Job, rootless UID 1000, daemonless (`buildctl-daemonless.sh`) | IAM-токен из метаданных ноды → `~/.docker/config.json` (UID 1000) |
+| **Kaniko** | `gcr.io/kaniko-project/executor:v1.23.2-debug` | Job, обычный контейнер без privileged (root, но внутри) | IAM-токен из метаданных ноды → `config.json` в `/kaniko/.docker` |
+| **BuildKit** | `moby/buildkit:v0.32.2-rootless` | Job, rootless-режим (UID 1000), daemonless (`buildctl-daemonless.sh`) | IAM-токен из метаданных ноды → `~/.docker/config.json` (UID 1000) |
 
 Оба пушат в один и тот же Yandex Container Registry (`registry.yandex.cloud/<registry-id>/`).
 
@@ -118,7 +118,7 @@ kubectl apply -f benchmark/namespace.yaml \
 - `benchmark/scripts-configmap.yaml` — скрипты: замер времени (`time-build.sh`), получение IAM-токена и запись docker-config (никаких секретов в манифестах нет — токен живёт 12 часов и берётся из метаданных ноды прямо во время запуска);
 - `benchmark/build-context-configmap.yaml` — общий для обоих инструментов multi-stage Dockerfile + исходники приложения (`app.py` — Flask-приложение);
 - `benchmark/kaniko/kaniko-job.yaml` — Job `kaniko-build` (генерируется Terraform из `.tftpl`, с реальным `registry_id`);
-- `benchmark/buildkit/buildkit-job.yaml` — Job `buildkit-build` (тоже генерируется, rootless).
+- `benchmark/buildkit/buildkit-job.yaml` — Job `buildkit-build` (тоже генерируется, rootless-режим).
 </details>
 
 ### 4. Запуск и наблюдение
@@ -192,7 +192,7 @@ kubectl -n kaniko-benchmark logs job/buildkit-build
 
 **Преимущества:**
 
-- **Работает без привилегий.** Обычный контейнер, никакого `privileged`, никакого docker.sock — подходит для managed-кластера и строгих политик безопасности.
+- **Работает без привилегий.** Обычный контейнер без privileged, никакого docker.sock — подходит для managed-кластера и строгих политик безопасности.
 - **Простота.** Один бинарник-джоб хорошо известен, огромное количество документации и примеров.
 - **Кэш в registry.** `--cache-repo` позволяет переиспользовать слои между сборками непротиворечиво, даже если сам кластер/нода меняются (кэш живёт в registry, а не на диске пода).
 - **Можно собирать в любом кластере** — без настройки daemon, без sysctl, без user-namespace.
@@ -216,13 +216,13 @@ kubectl -n kaniko-benchmark logs job/buildkit-build
 **Недостатки:**
 
 - **Rootless-режим имеет нюансы.** Требует unprivileged user namespaces (на нодах может понадобиться `sysctl -w user.max_user_namespaces=63359`), `oci-worker-no-process-sandbox`, отключение seccomp/apparmor на уровне пода. В managed Yandex K8s это либо работает «из коробки», либо требует DaemonSet-воркараунд.
-- **Сложнее.** Daemonless-джоб поднимает встроенный демон, требует понимания `buildctl`/`buildkitd`, кэша и привилегий.
+- **Сложнее.** Daemonless-джоб поднимает встроенный демон, требует понимания `buildctl`/`buildkitd` и кэша.
 - **Ресурсы.** Многопоточность = большее пиковое потребление CPU/RAM, которое нужно учитывать в requests/limits.
 - **Кэш эфемерен.** emptyDir живёт, пока жив под — при пересоздании пода кэш теряется (для persistence нужен PVC или external-cache), тогда как Kaniko-кэш в registry переживает всё.
 
 ## Вывод
 
-Kaniko — «заниженный порог входа» для безопасной сборки без привилегий; подходит, когда нужно просто и надёжно собрать типовой образ в managed-кластере. BuildKit — значительный прирост скорости и выразительности Dockerfile ценой сложности rootless-настройки и большего потребления ресурсов.
+Kaniko — «заниженный порог входа» для безопасной сборки без привилегий (без privileged); подходит, когда нужно просто и надёжно собрать типовой образ в managed-кластере. BuildKit — значительный прирост скорости и выразительности Dockerfile ценой сложности rootless-настройки и большего потребления ресурсов.
 
 Итоговую рекомендацию нужно давать по числам из таблиц выше: если сборка редкая и Dockerfile типовой, Kaniko достаточно; если собираете часто, образы тяжёлые и хочется скорости — BuildKit, но с правильной конфигурацией кэша и ресурсов.
 
@@ -242,7 +242,7 @@ Kaniko — «заниженный порог входа» для безопас�
 | `benchmark/scripts-configmap.yaml` | Скрипты: замер времени, IAM-токен, docker-config |
 | `benchmark/build-context-configmap.yaml` | Общий Dockerfile + исходники приложения |
 | `benchmark/kaniko/kaniko-job.yaml.tftpl` | Job kaniko (генерируется: `benchmark/kaniko/kaniko-job.yaml`) |
-| `benchmark/buildkit/buildkit-job.yaml.tftpl` | Job buildkit rootless (генерируется) |
+| `benchmark/buildkit/buildkit-job.yaml.tftpl` | Job buildkit в rootless-режиме (генерируется) |
 | `app/` | Исходники тестового приложения (Flask) |
 | `dashboards/kaniko-vs-buildkit-dashboard.json` | Дашборд Grafana |
 

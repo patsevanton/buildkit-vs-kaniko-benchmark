@@ -1,7 +1,7 @@
 # Скрипты-помощники для джобов бенчмарка: замер времени сборки, получение
 # IAM-токена и запись docker config. Монтируются в /scripts (defaultMode 0755).
 # Рассчитаны на busybox/alpine (wget, sed, awk) — совместимы и с kaniko:debug,
-# и с buildkit:rootless.
+# и с buildkit:rootless-режим.
 apiVersion: v1
 kind: ConfigMap
 metadata:
