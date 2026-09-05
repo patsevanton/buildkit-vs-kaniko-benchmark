@@ -64,3 +64,31 @@ data:
     {"auths":{"cr.yandex":{"auth":"$AUTH_B64"},"registry.yandex.cloud":{"auth":"$AUTH_B64"}}}
     EOF
     echo "docker config written to $DIR/config.json"
+
+  setup-workspace.sh: |
+    #!/bin/sh
+    # Материализует дерево контекста сборки из плоского ConfigMap в /workspace.
+    # Ключи ConfigMap не могут содержать '/', поэтому вложенные пути кодируются
+    # разделителем '__' (src__main.ts -> src/main.ts).
+    # Монтируется в /workspace-src (readOnly), а /workspace — writable emptyDir, куда
+    # сначала раскладываются файлы, затем (опция) chown-ится для UID целевого контейнера.
+    set -eu
+    SRC_DIR="${SRC_DIR:-/workspace-src}"
+    DST_DIR="${DST_DIR:-/workspace}"
+    TARGET_UID="${TARGET_UID:-0}"
+
+    # Очистить /workspace (на случай перезапуска) и создать дерево.
+    rm -rf "$DST_DIR"/*
+    find "$SRC_DIR" -maxdepth 1 -type f | while read -r f; do
+      base=$(basename "$f")
+      # Разделитель '__' превращаем в '/'.
+      rel=$(printf '%s' "$base" | sed 's/__/\//g')
+      mkdir -p "$DST_DIR/$(dirname "$rel")"
+      cp "$f" "$DST_DIR/$rel"
+    done
+
+    if [ "$TARGET_UID" -ne 0 ]; then
+      chown -R "$TARGET_UID:$TARGET_UID" "$DST_DIR"
+    fi
+    echo "workspace materialized at $DST_DIR"
+    ls -la "$DST_DIR"

@@ -7,54 +7,68 @@
 Классических ответов два — **Kaniko** и **BuildKit**:
 
 - **Kaniko** (`gcr.io/kaniko-project/executor`) — инструмент от Google, который собирает образы **без privileged-контейнера**, запускаясь из обычного контейнера (внутри работает от root, но без привилегий ноды). Репозиторий [GoogleContainerTools/kaniko](https://github.com/GoogleContainerTools/kaniko) **архивирован владельцем 3 июня 2025 года** и доступен только для чтения — проект больше не развивается.
-- **BuildKit** (`moby/buildkit`) — движок сборки, который с 2022 года стоит за `docker build` в десктопном Docker (через `buildx`). В Kubernetes запускается в **rootless-режиме** (UID 1000) и daemonless: один контейнер поднимает свой встроенный демон, собирает и пушит образ. Слава BuildKit — скорость (параллелизм по слоям, кэш, BuildKit-кэш-могут-переживать пересборки) и богатый синтаксис Dockerfile.
+- **BuildKit** (`moby/buildkit`) — движок сборки, который с 2022 года стоит за `docker build` в десктопном Docker (через `buildx`). В Kubernetes запускается **daemonless**: один контейнер поднимает свой встроенный демон `buildkitd`, собирает и пушит образ. В этом бенчмарке демон работает **от root** (как у Kaniko) — без user namespaces, без `Unconfined`/apparmor-нюансов, условия для обоих инструментов уравнены.
 
-Этот репозиторий — **воспроизводимый бенчмарк** на Managed Yandex K8s: один и тот же multi-stage Dockerfile собирается обоими инструментами в одних и тех же условиях, с замером времени, потребления CPU/RAM и поведения кэша. Плюс — детальный разбор **преимуществ и недостатков** каждого подхода для продакшна.
+Этот репозиторий — **воспроизводимый бенчмарк** на Managed Yandex K8s: **7 проектов** разных языков и фреймворков собираются обоими инструментами в одних и тех же условиях, с замером времени, потребления CPU/RAM и поведения кэша. В конце — **итоговая сводная таблица** и разбор **преимуществ и недостатков** каждого подхода для продакшна.
 
 ## Что измеряем
 
 | Категория | Как измеряем |
 |---|---|
 | **Время сборки** (без кэша / с кэшем) | `time-build.sh` замеряет `date +%s` до/после команды сборки внутри Job, пишет в `/artifacts/times.txt` |
-| **Потребление CPU/RAM** | node-exporter + cAdvisor → VictoriaMetrics → дашборд Grafana «Kaniko vs BuildKit» |
+| **Потребление CPU/RAM** | node-exporter + cAdvisor → VictoriaMetrics → дашборд Grafana «Kaniko vs BuildKit» (с фильтром по проекту) |
 | **Кэширование слоёв** | повторный запуск того же Dockerfile с включённым кэшем: kaniko `--cache` (registry-кэш) и BuildKit `--import-cache`/`--export-cache type=registry` (тоже registry-кэш) |
 | **Особенности Managed Yandex K8s** | auth в Registry через IAM-токен из метаданных ноды, отсутствие потребности в privileged-контейнерах, daemonless-сборка без docker.sock |
-| **Поддержка Dockerfile-синтаксиса** | один и тот же Dockerfile (apt, multi-stage, COPY --from) — сравнение совместимости |
+| **Поддержка Dockerfile-синтаксиса** | одинаковые Dockerfile (apt, multi-stage, COPY --from) — сравнение совместимости |
+
+## Сравниваемые проекты
+
+Бенчмарк собирает **7 проектов** — по одному на характерный «профиль сборки»:
+
+| № | Проект | Язык/Framework | Профиль сборки | Контекст |
+|---|---|---|---|---|
+| 1 | **Flask + Gunicorn** | Python | `pip install` multi-stage | `benchmark/projects/flask` |
+| 2 | **NestJS** | Node/TS | тяжёлый `npm ci` + декораторы, tsc | `benchmark/projects/nestjs` |
+| 3 | **Next.js** | Node/React SSR | `npm ci` + сборка клиента | `benchmark/projects/nextjs` |
+| 4 | **Nuxt 3** | Node/Vue SSR | `npm ci` + сборка клиента | `benchmark/projects/nuxt` |
+| 5 | **Go HTTP-сервис** | Go | `go build` → статический бинарник (из scratch) | `benchmark/projects/go` |
+| 6 | **Android APK** | Java/Kotlin, Gradle | `assembleRelease`, тяжёлый Gradle/SDK | `benchmark/projects/android` |
+| 7 | **ML: PyTorch inference** | Python | `pip install torch` + скачивание ~1.3 ГБ весов в BUILD-стадии (public S3-бакет) | `benchmark/projects/ml-pytorch` |
 
 ## Архитектура стенда
 
 ```mermaid
 flowchart LR
     subgraph K8s["Managed Yandex K8s (1.33)"]
-        K1["Job kaniko-build<br/>kaniko v1.23.2-debug"]
-        B1["Job buildkit-build<br/>buildkit v0.32.2-rootless"]
+        F1["Job kaniko: <project>-kaniko-build × 7"]
+        F2["Job buildkit: <project>-buildkit-build × 7"]
         subgraph NS["namespace kaniko-benchmark"]
-            K1
-            B1
+            F1
+            F2
         end
     end
 
     subgraph YCR["Yandex Container Registry"]
-        R["registry.yandex.cloud/&lt;id&gt;<br/>kaniko-benchmark / buildkit-benchmark"]
+        R["registry.yandex.cloud/&lt;id&gt;<br/>&lt;project&gt;-kaniko / &lt;project&gt;-buildkit<br/>+ &lt;project&gt;-*-cache"]
     end
 
     MET["IAM-токен из метаданных ноды<br/>169.254.169.254 (сервисный аккаунт)"]
     VM["VictoriaMetrics (vmks)"]
     G["Grafana"]
 
-    K1 -->|"push"| R
-    B1 -->|"push"| R
-    MET -.->|"auth"| K1
-    MET -.->|"auth"| B1
-    K1 -->|"node metrics"| VM
-    B1 -->|"node metrics"| VM
+    F1 -->|"push"| R
+    F2 -->|"push"| R
+    MET -.->|"auth"| F1
+    MET -.->|"auth"| F2
+    F1 -->|"node metrics"| VM
+    F2 -->|"node metrics"| VM
     VM --> G
 ```
 
 Terraform поднимает:
 
 - VPC + 3 приватные подсети (по одной в зонах `ru-central1-b/-d/-e`), NAT-шлюз с route table — ноды **без публичных IP** (согласно AGENTS.md);
-- Managed K8s master 1.33 (regional, 3 зоны), node group из 3 preemptible нод `standard-v3` 4 vCPU / 8 ГБ;
+- Managed K8s master 1.33 (regional, 3 зоны), node group из 6 preemptible нод `standard-v3` 8 vCPU / 16 ГБ (по 2 ноды на зону);
 - Traefik (ingress) для доступа к Grafana через `sslip.io`;
 - **Yandex Container Registry** + IAM-привязку для сервисного аккаунта кластера (`container-registry.images.pusher` / `container-registry.images.puller`);
 - VictoriaMetrics k8s-stack в namespace **`vmks`** (с отключёнными scrape и правилами для control-plane — как того требует AGENTS.md для Managed Yandex K8s). Устанавливается **отдельным шагом** через скрипт `install-vmks.sh` после `terraform apply` — terraform только рендерит `values/vmks-values.yaml`.
@@ -64,9 +78,9 @@ Terraform поднимает:
 | Вариант | Образ | Запуск | Auth в registry |
 |---|---|---|---|
 | **Kaniko** | `gcr.io/kaniko-project/executor:v1.23.2-debug` | Job, обычный контейнер без privileged (root, но внутри) | IAM-токен из метаданных ноды → `config.json` в `/kaniko/.docker` |
-| **BuildKit** | `moby/buildkit:v0.32.2-rootless` | Job, rootless-режим (UID 1000), daemonless (`buildctl-daemonless.sh`) | IAM-токен из метаданных ноды → `~/.docker/config.json` (UID 1000) |
+| **BuildKit** | `moby/buildkit:v0.32.2` | Job, **daemonless** (`buildctl-daemonless.sh`), демон `buildkitd` от root | IAM-токен из метаданных ноды → `/root/.docker/config.json` |
 
-Оба пушат в один и тот же Yandex Container Registry (`registry.yandex.cloud/<registry-id>/`).
+Оба пушат в один и тот же Yandex Container Registry (`registry.yandex.cloud/<registry-id>/`), по своему репозиторию на проект (`<project>-kaniko`, `<project>-buildkit`). Оба инструмента работают **от root** и **daemonless** — условия замеров уравнены, разница — только в самом инструменте сборки.
 
 ## Развёртывание
 
@@ -82,7 +96,10 @@ terraform apply -auto-approve
 - `k8s_cluster_credentials_command` — команда получения доступа к K8s;
 - `grafana_url` + `grafana_admin_password_command` — доступ к дашборду;
 - `registry_server` — адрес `registry.yandex.cloud/<id>`;
+- `ml_weights_url` — URL весов ML-модели (бакет `kaniko-vs-buildkit-weights`);
 - `apply_benchmark_command` — команда применения манифестов бенчмарка.
+
+> Для проекта `ml-pytorch` перед прогоном нужно **один раз залить веса** в созданный бакет (см. `TODO.md`). Без этого джобы ml-pytorch упадут на скачивании.
 
 > Terraform **не устанавливает** VictoriaMetrics k8s-stack (vmks): он только рендерит `values/vmks-values.yaml`. Сама установка — отдельным шагом ниже.
 
@@ -106,24 +123,34 @@ kubectl get nodes
 ```bash
 kubectl apply -f benchmark/namespace.yaml \
   -f benchmark/scripts-configmap.yaml \
-  -f benchmark/build-context-configmap.yaml \
-  -f benchmark/kaniko/kaniko-job.yaml \
-  -f benchmark/buildkit/buildkit-job.yaml
+  -f benchmark/generated/
 ```
 
 <details>
 <summary>Что внутри манифестов</summary>
 
 - `benchmark/namespace.yaml` — namespace `kaniko-benchmark`;
-- `benchmark/scripts-configmap.yaml` — скрипты: замер времени (`time-build.sh`), получение IAM-токена и запись docker-config (никаких секретов в манифестах нет — токен живёт 12 часов и берётся из метаданных ноды прямо во время запуска);
-- `benchmark/build-context-configmap.yaml` — общий для обоих инструментов multi-stage Dockerfile + исходники приложения (`app.py` — Flask-приложение);
-- `benchmark/kaniko/kaniko-job.yaml` — Job `kaniko-build` (генерируется Terraform из `.tftpl`, с реальным `registry_id`);
-- `benchmark/buildkit/buildkit-job.yaml` — Job `buildkit-build` (тоже генерируется, rootless-режим).
+- `benchmark/scripts-configmap.yaml` — скрипты: замер времени (`time-build.sh`), получение IAM-токена, запись docker-config и материализация дерева контекста (`setup-workspace.sh`). Никаких секретов в манифестах нет — токен живёт 12 часов и берётся из метаданных ноды прямо во время запуска;
+- `benchmark/generated/` — **отрендеренные Terraform** манифесты:
+  - `build-context-<project>.yaml` — ConfigMap контекста (плоские ключи, вложенные пути — через `__` → `/`);
+  - `<project>-kaniko-job.yaml` — Job Kaniko на проект;
+  - `<project>-buildkit-job.yaml` — Job BuildKit на проект (daemonless, от root);
+  - (`benchmark/generated/` в `.gitignore` — файлы регенерируются при `terraform apply`.)
 </details>
 
-### 4. Запуск и наблюдение
+### 4. Запуск прогона
 
-Оба Job запускаются параллельно (каждый — отдельная нода за счёт тех же ресурсов). Следим:
+Пары `kaniko+buildkit` одного проекта запускаются **параллельно**, между проектами — **последовательно** (скрипт `benchmark/run-benchmark.sh`):
+
+```bash
+./benchmark/run-benchmark.sh            # все 7 проектов
+# или по одному:
+./benchmark/run-benchmark.sh go android
+```
+
+Скрипт для каждого проекта: удаляет старые Job, применяет пару, ждёт завершения (`kubectl wait --for=condition=complete`) и печатает `elapsed_sec` из логов.
+
+Наблюдение вручную:
 
 ```bash
 kubectl -n kaniko-benchmark get jobs -w
@@ -133,8 +160,14 @@ kubectl -n kaniko-benchmark get pods -w
 По завершении — сводка времени в `times.txt` каждого Job:
 
 ```bash
-kubectl -n kaniko-benchmark logs job/kaniko-build
-kubectl -n kaniko-benchmark logs job/buildkit-build
+kubectl -n kaniko-benchmark logs job/go-kaniko-build   | grep elapsed_sec
+kubectl -n kaniko-benchmark logs job/go-buildkit-build | grep elapsed_sec
+```
+
+Собрать итоговую таблицу из всех проектов:
+
+```bash
+./benchmark/parse-results.sh   # печатает и пишет results.md
 ```
 
 ### 5. Дашборд в Grafana
@@ -155,20 +188,42 @@ kubectl -n kaniko-benchmark logs job/buildkit-build
 
 > Это **ожидания**, а не результат. Ниже методика, как получить числа на вашем стенде, и таблицы для заполнения.
 
-## Как заполнить таблицу результатов
+## Как заполнить сводную таблицу результатов
 
 1. Выполните **первый прогон** (холодный кэш):
    ```bash
-   kubectl -n kaniko-benchmark delete job kaniko-build buildkit-build --ignore-not-found
-   kubectl apply -f benchmark/kaniko/kaniko-job.yaml -f benchmark/buildkit/buildkit-job.yaml
-   kubectl -n kaniko-benchmark logs job/kaniko-build   # строка kaniko elapsed_sec=...
-   kubectl -n kaniko-benchmark logs job/buildkit-build # строка buildkit elapsed_sec=...
+   ./benchmark/run-benchmark.sh   # пары kaniko+buildkit на проект, последовательно по проектам
+   ```
+   Время каждого Job — строка `<project>-<tool> elapsed_sec=N` в логах:
+   ```bash
+   kubectl -n kaniko-benchmark logs job/go-kaniko-build   | grep elapsed_sec
+   kubectl -n kaniko-benchmark logs job/go-buildkit-build | grep elapsed_sec
    ```
 2. Выполните **второй прогон** (тёплый кэш) тем же способом — запишите вторые числа.
-3. Снимите CPU/RAM с дашборда Grafana за соответствующий интервал времени.
-4. Внесите числа в таблицы ниже и сформулируйте вывод.
+3. Снимите CPU/RAM с дашборда Grafana за соответствующий интервал (фильтр по проекту).
+4. Соберите итог:
+   ```bash
+   ./benchmark/parse-results.sh   # -> results.md
+   ```
+5. Внесите числа в таблицу ниже и сформулируйте вывод.
 
-### Прогон 1: холодный кэш
+### Итоговая сводная таблица (7 проектов)
+
+Заполняется после реального прогона. Пример формата (числа — как вставить):
+
+| Проект | Время kaniko (с) | Время buildkit (с) | Выигрыш BuildKit % |
+|---|---|---|---|
+| flask | _заполнить_ | _заполнить_ | _заполнить_ |
+| nestjs | _заполнить_ | _заполнить_ | _заполнить_ |
+| nextjs | _заполнить_ | _заполнить_ | _заполнить_ |
+| nuxt | _заполнить_ | _заполнить_ | _заполнить_ |
+| go | _заполнить_ | _заполнить_ | _заполнить_ |
+| android | _заполнить_ | _заполнить_ | _заполнить_ |
+| ml-pytorch | _заполнить_ | _заполнить_ | _заполнить_ |
+
+### Детализация по метрикам (пример на проекте go)
+
+#### Прогон 1: холодный кэш
 
 | Метрика | Kaniko | BuildKit |
 |---|---|---|
@@ -177,7 +232,7 @@ kubectl -n kaniko-benchmark logs job/buildkit-build
 | Пиковая RAM (working set, GiB) | _заполнить_ | _заполнить_ |
 | Ошибки/retries | _заполнить_ | _заполнить_ |
 
-### Прогон 2: тёплый кэш
+#### Прогон 2: тёплый кэш
 
 | Метрика | Kaniko | BuildKit |
 |---|---|---|
@@ -215,16 +270,16 @@ kubectl -n kaniko-benchmark logs job/buildkit-build
 
 **Недостатки:**
 
-- **Rootless-режим имеет нюансы.** Требует unprivileged user namespaces (на нодах может понадобиться `sysctl -w user.max_user_namespaces=63359`), `oci-worker-no-process-sandbox`, отключение seccomp/apparmor на уровне пода. В managed Yandex K8s это либо работает «из коробки», либо требует DaemonSet-воркараунд.
 - **Сложнее.** Daemonless-джоб поднимает встроенный демон, требует понимания `buildctl`/`buildkitd` и кэша.
 - **Ресурсы.** Многопоточность = большее пиковое потребление CPU/RAM, которое нужно учитывать в requests/limits.
 - **Оба кэша эфемерны.** В этом бенчмарке ни Kaniko, ни BuildKit не хранят локальный кэш между прогонами (Kaniko не пишет кэш на диск по умолчанию, BuildKit живёт в daemonless-поде без PVC) — теплота кэша обеспечивается только registry-кэшем. Kaniko-кэш в `--cache-repo` и BuildKit-кэш в `--export-cache type=registry` в равной степени переживают пересоздание подов.
+- **Rootless-режим (если он нужен) имеет нюансы.** В этом бенчмарке BuildKit работает от root (как и Kaniko), поэтому rootless-настройки не нужны. Если в продакшне потребуется rootless — там будут уместны user namespaces, `oci-worker-no-process-sandbox` и отключение seccomp/apparmor на уровне пода.
 
 ## Вывод
 
-Kaniko — «заниженный порог входа» для безопасной сборки без привилегий (без privileged); подходит, когда нужно просто и надёжно собрать типовой образ в managed-кластере. BuildKit — значительный прирост скорости и выразительности Dockerfile ценой сложности rootless-настройки и большего потребления ресурсов.
+Kaniko — «заниженный порог входа» для безопасной сборки без привилегий (без privileged); подходит, когда нужно просто и надёжно собрать типовой образ в managed-кластере. BuildKit — значительный прирост скорости и выразительности Dockerfile ценой сложности daemonless-настройки и большего потребления ресурсов. В этом бенчмарке оба инструмента работают **от root** в одинаковых условиях, поэтому разница сводится к скорости и кэшированию.
 
-Итоговую рекомендацию нужно давать по числам из таблиц выше: если сборка редкая и Dockerfile типовой, Kaniko достаточно; если собираете часто, образы тяжёлые и хочется скорости — BuildKit, но с правильной конфигурацией кэша и ресурсов.
+Итоговую рекомендацию нужно давать по числам из сводной таблицы: если сборка редкая и Dockerfile типовой, Kaniko достаточно; если собираете часто, образы тяжёлые (Node/Gradle/ML) и хочется скорости — BuildKit, но с правильной конфигурацией кэша и ресурсов.
 
 ## Файлы
 
@@ -233,18 +288,22 @@ Kaniko — «заниженный порог входа» для безопас�
 | `versions.tf`, `providers.tf`, `variables.tf`, `locals.tf` | Провайдеры и общие настройки Terraform |
 | `net.tf` | VPC, 3 приватные подсети, NAT-шлюз, route table |
 | `ip-dns.tf` | Публичный IP балансировщика Traefik |
-| `k8s.tf` | Managed K8s (master 1.33, региональный), node group, Traefik |
+| `k8s.tf` | Managed K8s (master 1.33, региональный), node group 6×8 vCPU/16 ГБ, Traefik |
 | `registry.tf` | Yandex Container Registry + IAM-привязка для SA кластера |
+| `weights.tf` | S3-бакет `kaniko-vs-buildkit-weights` (public-read) для весов ML-проекта, вывод `ml_weights_url` |
 | `monitoring.tf`, `values/vmks-values.yaml.tftpl` | Рендер values для VictoriaMetrics k8s-stack в namespace `vmks` (с отключёнными scrape control-plane); установка — через `install-vmks.sh` |
 | `install-vmks.sh` | Установка vmks после `terraform apply` (`helm upgrade --install`, идемпотентно) |
-| `benchmark.tf` | Рендер job-манифестов из `.tftpl` (registry_id) |
+| `benchmark.tf` | Рендер 7 ConfigMap контекста + 14 job-манифестов из `.tftpl` (registry_id, project) |
 | `benchmark/namespace.yaml` | Namespace `kaniko-benchmark` |
-| `benchmark/scripts-configmap.yaml` | Скрипты: замер времени, IAM-токен, docker-config |
-| `benchmark/build-context-configmap.yaml` | Общий Dockerfile + исходники приложения |
-| `benchmark/kaniko/kaniko-job.yaml.tftpl` | Job kaniko (генерируется: `benchmark/kaniko/kaniko-job.yaml`) |
-| `benchmark/buildkit/buildkit-job.yaml.tftpl` | Job buildkit в rootless-режиме (генерируется) |
-| `app/` | Исходники тестового приложения (Flask) |
-| `dashboards/kaniko-vs-buildkit-dashboard.json` | Дашборд Grafana |
+| `benchmark/scripts-configmap.yaml` | Скрипты: замер времени, IAM-токен, docker-config, `setup-workspace.sh` |
+| `benchmark/build-context-configmap.yaml.tftpl` | Шаблон ConfigMap контекста (плоские ключи `__` → `/`) |
+| `benchmark/kaniko/kaniko-job.yaml.tftpl` | Job kaniko на проект (генерируется в `benchmark/generated/`) |
+| `benchmark/buildkit/buildkit-job.yaml.tftpl` | Job buildkit daemonless от root (генерируется) |
+| `benchmark/projects/<project>/` | 7 мини-проектов: flask, nestjs, nextjs, nuxt, go, android, ml-pytorch |
+| `benchmark/run-benchmark.sh` | Оркестрация: пары kaniko+buildkit параллельно, проекты последовательно |
+| `benchmark/parse-results.sh` | Сбор `elapsed_sec` из всех Job → `results.md` |
+| `TODO.md` | Как залить веса ML-модели (~1.3 ГБ) в S3-бакет |
+| `dashboards/kaniko-vs-buildkit-dashboard.json` | Дашборд Grafana (с фильтром по проекту) |
 
 ## Требования
 

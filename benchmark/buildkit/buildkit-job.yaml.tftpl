@@ -1,26 +1,27 @@
-# Job: сборка одного и того же образа через BuildKit (daemonless, rootless-режим)
-# в Managed Yandex K8s.
-#  - контекст: ConfigMap build-context (Dockerfile + app.py + app.sh), mount в /workspace
-#  - auth: IAM-токен из метаданных ноды -> ~/.docker/config.json (пользователь UID 1000)
-#  - кэш: registry-кэш (как у kaniko) через --import-cache/--export-cache type=registry
-#    в registry.yandex.cloud/<id>/buildkit-benchmark-cache. Локального кэша между прогонами нет:
+# Job: сборка контекста ${project} через BuildKit (daemonless, root) в Managed Yandex K8s.
+#  - контекст: ConfigMap build-context-${project} (Dockerfile + исходники), mount в /workspace
+#  - auth: IAM-токен из метаданных ноды -> ~/.docker/config.json (docker config)
+#  - как и kaniko, демон buildkitd работает от root; никакого Unconfined/user-namespaces нет
+#  - кэш: registry-кэш через --import-cache/--export-cache type=registry
+#    в registry.yandex.cloud/<id>/${project}-buildkit-cache. Локального кэша между прогонами нет:
 #    buildkitd во время сборки держит эфемерный кэш во встроенном VOLUME образа.
 #  - замер времени: wrapper /scripts/time-build.sh пишет в /artifacts/times.txt
-#  - результат пушится в Yandex Container Registry: registry.yandex.cloud/<id>/buildkit:<tag>
+#  - результат пушится в Yandex Container Registry: registry.yandex.cloud/<id>/${project}-buildkit:<tag>
 #
-# Образ moby/buildkit:v0.32.2-rootless (alpine-based, пользователь "user" UID 1000, home /home/user).
-# Запускается через buildctl-daemonless.sh: поднимает встроенный buildkitd внутри того же контейнера.
+# Образ moby/buildkit:v0.32.2 (root). Запускается через buildctl-daemonless.sh:
+# поднимает встроенный buildkitd внутри того же контейнера.
 #
 # Генерируется Terraform'ом из benchmark/buildkit/buildkit-job.yaml.tftpl,
-# registry_id подставляется из yandex_container_registry.registry.id.
+# registry_id и project подставляются в benchmark.tf.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: buildkit-build
+  name: ${project}-buildkit-build
   namespace: kaniko-benchmark
   labels:
     app: kaniko-buildkit-benchmark
     tool: buildkit
+    project: ${project}
 spec:
   backoffLimit: 2
   template:
@@ -28,13 +29,33 @@ spec:
       labels:
         app: kaniko-buildkit-benchmark
         tool: buildkit
+        project: ${project}
     spec:
       restartPolicy: Never
-      securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
       initContainers:
-# Записываем registry auth в ~/.docker/config.json пользователя UID 1000.
+# Материализуем дерево контекста из плоского ConfigMap (ключи с __ -> /).
+        - name: setup-workspace
+          image: alpine:3.20
+          command:
+            - /bin/sh
+            - -c
+            - |
+              /scripts/setup-workspace.sh
+          env:
+            - name: SRC_DIR
+              value: /config
+            - name: DST_DIR
+              value: /workspace
+            - name: TARGET_UID
+              value: "0"
+          volumeMounts:
+            - name: build-context
+              mountPath: /config
+            - name: workdir
+              mountPath: /workspace
+            - name: scripts
+              mountPath: /scripts
+# Записываем registry auth в /root/.docker/config.json.
         - name: auth
           image: alpine:3.20
           command:
@@ -42,36 +63,31 @@ spec:
             - -c
             - |
               TOKEN=$(/scripts/get-iam-token.sh)
-              /scripts/write-docker-config.sh /home/user/.docker iam "$TOKEN"
-              # Основной контейнер buildkit работает от UID 1000 — отдаём ему файлы.
-              chown -R 1000:1000 /home/user/.docker
-              mkdir -p /artifacts && chown -R 1000:1000 /artifacts
+              /scripts/write-docker-config.sh /root/.docker iam "$TOKEN"
+              mkdir -p /artifacts
           volumeMounts:
             - name: docker-config
-              mountPath: /home/user/.docker
+              mountPath: /root/.docker
             - name: scripts
               mountPath: /scripts
             - name: artifacts
               mountPath: /artifacts
       containers:
         - name: buildkit
-          image: moby/buildkit:v0.32.2-rootless
-          env:
-            - name: BUILDKITD_FLAGS
-              value: --oci-worker-no-process-sandbox
+          image: moby/buildkit:v0.32.2
           command:
             - /bin/sh
             - -c
             - |
-              until [ -f /home/user/.docker/config.json ]; do sleep 1; done
-              exec /scripts/time-build.sh buildkit \
+              until [ -f /root/.docker/config.json ]; do sleep 1; done
+              exec /scripts/time-build.sh ${project}-buildkit \
                 buildctl-daemonless.sh build \
                   --frontend dockerfile.v0 \
                   --local context=/workspace \
                   --local dockerfile=/workspace \
-                  --output type=image,name=registry.yandex.cloud/${registry_id}/buildkit-benchmark:latest,push=true \
-                  --import-cache type=registry,ref=registry.yandex.cloud/${registry_id}/buildkit-benchmark-cache \
-                  --export-cache type=registry,ref=registry.yandex.cloud/${registry_id}/buildkit-benchmark-cache,mode=max
+                  --output type=image,name=registry.yandex.cloud/${registry_id}/${project}-buildkit:latest,push=true \
+                  --import-cache type=registry,ref=registry.yandex.cloud/${registry_id}/${project}-buildkit-cache \
+                  --export-cache type=registry,ref=registry.yandex.cloud/${registry_id}/${project}-buildkit-cache,mode=max
           resources:
             requests:
               cpu: "1000m"
@@ -79,20 +95,11 @@ spec:
             limits:
               cpu: "4000m"
               memory: "4Gi"
-          securityContext:
-            seccompProfile:
-              type: Unconfined
-            # Needs Kubernetes >= 1.30
-            appArmorProfile:
-              type: Unconfined
-            runAsUser: 1000
-            runAsGroup: 1000
           volumeMounts:
-            - name: build-context
-              readOnly: true
+            - name: workdir
               mountPath: /workspace
             - name: docker-config
-              mountPath: /home/user/.docker
+              mountPath: /root/.docker
             - name: scripts
               mountPath: /scripts
             - name: artifacts
@@ -100,7 +107,9 @@ spec:
       volumes:
         - name: build-context
           configMap:
-            name: build-context
+            name: build-context-${project}
+        - name: workdir
+          emptyDir: {}
         - name: docker-config
           emptyDir: {}
         - name: scripts

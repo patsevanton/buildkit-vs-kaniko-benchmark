@@ -1,0 +1,16 @@
+# Контекст сборки для проекта ${project} (плоские ключи ConfigMap).
+# Ключи не могут содержать '/', поэтому вложенные пути кодируются разделителем '__' :
+#   src/main.ts -> src__main.ts
+# init-контейнер setup-workspace разворачивает их обратно в дерево /workspace.
+# Генерируется Terraform'ом из benchmark/build-context-configmap.yaml.tftpl —
+# файлы подхватываются из benchmark/projects/${project}.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: build-context-${project}
+  namespace: kaniko-benchmark
+  labels:
+    app: kaniko-buildkit-benchmark
+    project: ${project}
+data:
+${context_data}

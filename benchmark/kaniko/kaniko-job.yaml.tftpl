@@ -1,20 +1,22 @@
-# Job: сборка одного и того же образа через Kaniko в Managed Yandex K8s.
-#  - контекст: ConfigMap build-context (Dockerfile + app.py + app.sh), mount в /workspace
+# Job: сборка контекста ${project} через Kaniko в Managed Yandex K8s.
+#  - контекст: ConfigMap build-context-${project} (Dockerfile + исходники), mount в /workspace
 #  - auth: короткоживущий IAM-токен из метаданных ноды (сервисного аккаунта)
 #    -> docker config в /kaniko/.docker
 #  - замер времени: wrapper /scripts/time-build.sh (из ConfigMap scripts) пишет в /artifacts/times.txt
-#  - результат пушится в Yandex Container Registry: registry.yandex.cloud/<id>/kaniko:<tag>
+#  - результат пушится в Yandex Container Registry: registry.yandex.cloud/<id>/${project}-kaniko:<tag>
+#  - registry-кэш: --cache-repo registry.yandex.cloud/<id>/${project}-kaniko-cache
 #
 # Генерируется Terraform'ом из benchmark/kaniko/kaniko-job.yaml.tftpl,
-# registry_id подставляется из yandex_container_registry.registry.id.
+# registry_id и project подставляются в benchmark.tf.
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: kaniko-build
+  name: ${project}-kaniko-build
   namespace: kaniko-benchmark
   labels:
     app: kaniko-buildkit-benchmark
     tool: kaniko
+    project: ${project}
 spec:
   backoffLimit: 2
   template:
@@ -22,9 +24,32 @@ spec:
       labels:
         app: kaniko-buildkit-benchmark
         tool: kaniko
+        project: ${project}
     spec:
       restartPolicy: Never
       initContainers:
+        # Материализуем дерево контекста из плоского ConfigMap (ключи с __ -> /).
+        - name: setup-workspace
+          image: alpine:3.20
+          command:
+            - /bin/sh
+            - -c
+            - |
+              /scripts/setup-workspace.sh
+          env:
+            - name: SRC_DIR
+              value: /config
+            - name: DST_DIR
+              value: /workspace
+            - name: TARGET_UID
+              value: "0"
+          volumeMounts:
+            - name: build-context
+              mountPath: /config
+            - name: workdir
+              mountPath: /workspace
+            - name: scripts
+              mountPath: /scripts
         # Регистрируем авторизацию через IAM-токен до старта основного контейнера.
         - name: auth
           image: alpine:3.20
@@ -48,13 +73,13 @@ spec:
             - |
               # ждать, пока init-container запишет config (общий volume)
               until [ -f /kaniko/.docker/config.json ]; do sleep 1; done
-              exec /scripts/time-build.sh kaniko \
+              exec /scripts/time-build.sh ${project}-kaniko \
                 /kaniko/executor \
                 --dockerfile=Dockerfile \
                 --context=dir:///workspace \
-                --destination=registry.yandex.cloud/${registry_id}/kaniko-benchmark:latest \
+                --destination=registry.yandex.cloud/${registry_id}/${project}-kaniko:latest \
                 --cache=true \
-                --cache-repo=registry.yandex.cloud/${registry_id}/kaniko-benchmark-cache
+                --cache-repo=registry.yandex.cloud/${registry_id}/${project}-kaniko-cache
           env:
             - name: DOCKER_CONFIG
               value: /kaniko/.docker
@@ -66,27 +91,29 @@ spec:
               cpu: "4000m"
               memory: "4Gi"
           volumeMounts:
-            - name: build-context
+            - name: workdir
               mountPath: /workspace
             - name: kaniko-docker
               mountPath: /kaniko/.docker
             - name: scripts
               mountPath: /scripts
-            - name: workdir
+            - name: workdir-tmp
               mountPath: /tmp
             - name: artifacts
               mountPath: /artifacts
       volumes:
         - name: build-context
           configMap:
-            name: build-context
+            name: build-context-${project}
+        - name: workdir
+          emptyDir: {}
+        - name: workdir-tmp
+          emptyDir: {}
         - name: kaniko-docker
           emptyDir: {}
         - name: scripts
           configMap:
             name: benchmark-scripts
           defaultMode: 0755
-        - name: workdir
-          emptyDir: {}
         - name: artifacts
           emptyDir: {}

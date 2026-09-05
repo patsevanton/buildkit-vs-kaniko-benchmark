@@ -1,11 +1,8 @@
-# Multi-stage Dockerfile для замера kaniko vs buildkit.
-# Одинаковый для обоих инструментов — сравниваем только время сборки,
-# потребление ресурсов и кэширование, а не возможности Dockerfile.
+# Multi-stage Dockerfile для замера kaniko vs buildkit — проект flask.
+# Одинаковый для обоих инструментов: сравниваем только время сборки,
+# потребление ресурсов и кэширование.
 #
-# Три типовых сценария сборки реального приложения:
-#  1. Тяжёлая установка зависимостей (apt, pip) — много слоёв, много файлов.
-#  2. Multi-stage: build-образ (git, compile) → чистый runtime-образ.
-#  3. COPY контекста (код приложения) — чтение из registry-кэша.
+# Профиль: базовый «pip install» в multi-stage (baseline).
 
 # ---- Stage 1: build ----
 FROM debian:bookworm-slim AS builder
@@ -17,8 +14,6 @@ RUN echo "deb http://deb.debian.org/debian bookworm main" > /etc/apt/sources.lis
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
-
-# Псевдо-зависимости: создают много файлов, чтобы замерять COPY/слои.
 COPY . /src
 
 RUN pip3 install --no-cache-dir \

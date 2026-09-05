@@ -8,7 +8,7 @@ Operational notes for working with this repo's infrastructure (Yandex Cloud + Ma
 
 ## Требования к Terraform-стеку
 
-- Managed K8s: `1.33` (release channel `STABLE`), master regional (3 зоны), node group `standard-v3`, 4 vCPU / 8 ГБ, preemptible.
+- Managed K8s: `1.33` (release channel `STABLE`), master regional (3 зоны), node group `standard-v3`, 8 vCPU / 16 ГБ × 6 нод, preemptible.
 - Ноды **без публичных IP** (`nat = false`), исходящий трафик через NAT-шлюз + route table.
 - VictoriaMetrics k8s-stack (vmks) всегда устанавливается в namespace **`vmks`**, с отключёнными scrape-job и recording-правилами для control-plane (Yandex Managed K8s master вне кластера): см. `values/vmks-values.yaml.tftpl`.
 - Провайдер helm/kubernetes подключается к кластеру через `yc k8s create-token`.
@@ -25,9 +25,11 @@ Operational notes for working with this repo's infrastructure (Yandex Cloud + Ma
 
 ## Известные нюансы
 
-- **Rootless-режим BuildKit** требует unprivileged user namespaces на нодах. На Yandex Managed K8s обычно работает из коробки; если Job падает с `/proc/sys/user/max_user_namespaces` — нужен DaemonSet-воркараунд (см. официальный `examples/kubernetes/sysctl-userns.privileged.yaml` в moby/buildkit).
-- Job-манифесты `benchmark/kaniko/kaniko-job.yaml` и `benchmark/buildkit/buildkit-job.yaml` **генерируются Terraform** из `.tftpl` (в них подставляется реальный `registry_id`). Они в `.gitignore` — не коммитить сгенерированные файлы.
-- После `terraform apply`, если вы меняете registry/кластер — перепримените джобы заново (`kubectl apply -f ...`), т.к. сгенерированные YAML обновятся.
+- **BuildKit в этом бенчмарке работает от root** (`moby/buildkit:v0.32.2`, обычный образ) в daemonless-режиме — rootless-настройки не нужны. Если вернётесь к rootless-режиму, он требует unprivileged user namespaces на нодах (при падении с `/proc/sys/user/max_user_namespaces` — DaemonSet-воркараунд из `examples/kubernetes/sysctl-userns.privileged.yaml` в moby/buildkit).
+- Job-манифесты и ConfigMap контекста `benchmark/generated/*` **генерируются Terraform** из `.tftpl` (подставляются реальный `registry_id` и проект). Каталог в `.gitignore` — не коммитить сгенерированные файлы.
+- Контекст сборки передаётся **плоским ConfigMap** (`build-context-<project>`), вложенные пути кодируются `__` → `/`; init-контейнер `setup-workspace` восстанавливает дерево в `/workspace`. Ключи ConfigMap не могут содержать `/`.
+- Очередь бенчмарка: пара `kaniko+buildkit` одного проекта параллельно, между проектами — последовательно (`benchmark/run-benchmark.sh`).
+- После `terraform apply`, если вы меняете registry/кластер — перепримените джобы заново (`kubectl apply -f benchmark/generated/`), т.к. сгенерированные YAML обновятся.
 
 ## Команды проверки
 
@@ -39,7 +41,7 @@ kubectl get nodes
 # Прогресс сборок
 kubectl -n kaniko-benchmark get jobs -w
 kubectl -n kaniko-benchmark get pods -w
-# Время сборки из логов
-kubectl -n kaniko-benchmark logs job/kaniko-build
-kubectl -n kaniko-benchmark logs job/buildkit-build
+# Время сборки из логов (по проекту)
+kubectl -n kaniko-benchmark logs job/<project>-kaniko-build   | grep elapsed_sec
+kubectl -n kaniko-benchmark logs job/<project>-buildkit-build | grep elapsed_sec
 ```
