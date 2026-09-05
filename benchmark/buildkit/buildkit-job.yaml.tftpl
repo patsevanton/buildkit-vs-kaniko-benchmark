@@ -2,6 +2,9 @@
 # в Managed Yandex K8s.
 #  - контекст: ConfigMap build-context (Dockerfile + app.py + app.sh), mount в /workspace
 #  - auth: IAM-токен из метаданных ноды -> ~/.docker/config.json (пользователь UID 1000)
+#  - кэш: registry-кэш (как у kaniko) через --import-cache/--export-cache type=registry
+#    в registry.yandex.cloud/<id>/buildkit-benchmark-cache. Локального кэша между прогонами нет:
+#    buildkitd во время сборки держит эфемерный кэш во встроенном VOLUME образа.
 #  - замер времени: wrapper /scripts/time-build.sh пишет в /artifacts/times.txt
 #  - результат пушится в Yandex Container Registry: registry.yandex.cloud/<id>/buildkit:<tag>
 #
@@ -66,7 +69,9 @@ spec:
                   --frontend dockerfile.v0 \
                   --local context=/workspace \
                   --local dockerfile=/workspace \
-                  --output type=image,name=registry.yandex.cloud/${registry_id}/buildkit-benchmark:latest,push=true
+                  --output type=image,name=registry.yandex.cloud/${registry_id}/buildkit-benchmark:latest,push=true \
+                  --import-cache type=registry,ref=registry.yandex.cloud/${registry_id}/buildkit-benchmark-cache \
+                  --export-cache type=registry,ref=registry.yandex.cloud/${registry_id}/buildkit-benchmark-cache,mode=max
           resources:
             requests:
               cpu: "1000m"
@@ -88,8 +93,6 @@ spec:
               mountPath: /workspace
             - name: docker-config
               mountPath: /home/user/.docker
-            - name: buildkitd
-              mountPath: /home/user/.local/share/buildkit
             - name: scripts
               mountPath: /scripts
             - name: artifacts
@@ -99,8 +102,6 @@ spec:
           configMap:
             name: build-context
         - name: docker-config
-          emptyDir: {}
-        - name: buildkitd
           emptyDir: {}
         - name: scripts
           configMap:

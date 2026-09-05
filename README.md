@@ -17,7 +17,7 @@
 |---|---|
 | **Время сборки** (без кэша / с кэшем) | `time-build.sh` замеряет `date +%s` до/после команды сборки внутри Job, пишет в `/artifacts/times.txt` |
 | **Потребление CPU/RAM** | node-exporter + cAdvisor → VictoriaMetrics → дашборд Grafana «Kaniko vs BuildKit» |
-| **Кэширование слоёв** | повторный запуск того же Dockerfile с включённым кэшем: kaniko `--cache` (registry-кэш), BuildKit (локальный buildkitd-кэш) |
+| **Кэширование слоёв** | повторный запуск того же Dockerfile с включённым кэшем: kaniko `--cache` (registry-кэш) и BuildKit `--import-cache`/`--export-cache type=registry` (тоже registry-кэш) |
 | **Особенности Managed Yandex K8s** | auth в Registry через IAM-токен из метаданных ноды, отсутствие потребности в privileged-контейнерах, daemonless-сборка без docker.sock |
 | **Поддержка Dockerfile-синтаксиса** | один и тот же Dockerfile (apt, multi-stage, COPY --from) — сравнение совместимости |
 
@@ -148,7 +148,7 @@ kubectl -n kaniko-benchmark logs job/buildkit-build
 | Метрика | Kaniko | BuildKit |
 |---|---|---|
 | Время сборки **без кэша** (полный `apt install` + pip) | ~3–5 мин | ~1.5–3 мин (параллельные шаги) |
-| Время сборки **с кэшем** (повторный прогон) | быстрее через `--cache` (registry-кэш), но upload/download всех слоёв | кэш на локальном диске buildkitd, push только новых слоёв |
+| Время сборки **с кэшем** (повторный прогон) | быстрее через `--cache` (registry-кэш): слой берётся из registry без пересборки | registry-кэш через `--import-cache`/`--export-cache type=registry`, push только новых слоёв |
 | CPU (max) | монотонно по слоям | многопоточный (несколько воркеров за раз) |
 | RAM (max) | выше из-за полного `apt`/pip в процессе | зависит от параллелизма |
 | Итоговый образ | OCI | OCI |
@@ -209,7 +209,7 @@ kubectl -n kaniko-benchmark logs job/buildkit-build
 **Преимущества:**
 
 - **Скорость.** Многопоточная сборка (параллельные шаги), кэш слоёв и быстрый инкрементальный пересбор. На реальных Dockerfile часто в 2–3 раза быстрее Kaniko.
-- **Родная поддержка кэша.** `buildkitd` умеет хранить кэш локально и поддерживает внешние кэши (registry, S3) — при желании можно уйти от эфемерного emptyDir.
+- **Родная поддержка кэша.** `buildkitd` умеет хранить кэш локально и поддерживает внешние кэши (registry, S3). В этом бенчмарке локальный кэш не используется — BuildKit работает с registry-кэшем через `--import-cache`/`--export-cache type=registry` (аналог `--cache-repo` Kaniko).
 - **Богатый синтаксис.** `RUN --mount=type=cache|secret|ssh`, `RUN --mount=type=bind`, BuildKit-составные шаги, возможность подключать внешние кэши.
 - **Та же технология, что у `docker build`.** Что собирается в CI/local docker, то и BuildKit — единый синтаксис.
 
@@ -218,7 +218,7 @@ kubectl -n kaniko-benchmark logs job/buildkit-build
 - **Rootless-режим имеет нюансы.** Требует unprivileged user namespaces (на нодах может понадобиться `sysctl -w user.max_user_namespaces=63359`), `oci-worker-no-process-sandbox`, отключение seccomp/apparmor на уровне пода. В managed Yandex K8s это либо работает «из коробки», либо требует DaemonSet-воркараунд.
 - **Сложнее.** Daemonless-джоб поднимает встроенный демон, требует понимания `buildctl`/`buildkitd` и кэша.
 - **Ресурсы.** Многопоточность = большее пиковое потребление CPU/RAM, которое нужно учитывать в requests/limits.
-- **Кэш эфемерен.** `buildkitd` работает в daemonless-режиме внутри пода; его кэш лежит в emptyDir и живёт, пока жив под — при пересоздании пода кэш теряется (PVC и external-cache в этом бенчмарке не используются; Kaniko-кэш в registry живёт дольше).
+- **Оба кэша эфемерны.** В этом бенчмарке ни Kaniko, ни BuildKit не хранят локальный кэш между прогонами (Kaniko не пишет кэш на диск по умолчанию, BuildKit живёт в daemonless-поде без PVC) — теплота кэша обеспечивается только registry-кэшем. Kaniko-кэш в `--cache-repo` и BuildKit-кэш в `--export-cache type=registry` в равной степени переживают пересоздание подов.
 
 ## Вывод
 
