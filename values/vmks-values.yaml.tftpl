@@ -1,0 +1,59 @@
+# Values для victoria-metrics-k8s-stack (vmks), namespace vmks.
+# Генерируется Terraform'ом из values/vmks-values.yaml.tftpl через templatefile()
+# (monitoring.tf). Параметры приходят из local.* / var.*.
+
+grafana:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - ${grafana_fqdn}
+
+defaultDatasources:
+  victoriametrics:
+    datasources:
+      - name: VictoriaMetrics
+        type: prometheus
+        access: proxy
+        isDefault: true
+        jsonData:
+          httpMethod: POST
+          queryTimeout: 300s
+          timeInterval: 30s
+
+# Отключаем контроль control-plane: Yandex Managed K8s master вне кластера
+# (kube-controller-manager, kube-scheduler, kube-etcd недоступны для скрейпинга).
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+defaultRules:
+  groups:
+    etcd:
+      enabled: false
+    kubernetes-system-scheduler:
+      enabled: false
+    kubernetes-system-controller-manager:
+      enabled: false
+    kube-scheduler.rules:
+      enabled: false
+
+# Стек лёгкий: алерты для стенда не нужны.
+vmalert:
+  enabled: false
+alertmanager:
+  enabled: false
+
+vmsingle:
+  enabled: true
+  spec:
+    retentionPeriod: "${vmks_retention}"
+    storage:
+      resources:
+        requests:
+          storage: ${vmks_pv_size}
+
+vmcluster:
+  enabled: false

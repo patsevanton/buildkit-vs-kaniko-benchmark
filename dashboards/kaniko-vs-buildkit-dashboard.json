@@ -1,0 +1,85 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Ресурсы во время сборки (kaniko-build vs buildkit-build)",
+      "type": "row"
+    },
+    {
+      "id": 2,
+      "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"kaniko-benchmark\", container!=\"\", pod!=\"\"}[1m])) by (pod)",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "CPU rate (cores) by pod",
+      "type": "timeseries"
+    },
+    {
+      "id": 3,
+      "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 1 },
+      "targets": [
+        {
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"kaniko-benchmark\", container!=\"\", pod!=\"\"}) by (pod)",
+          "legendFormat": "{{pod}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Memory working set (bytes) by pod",
+      "type": "timeseries"
+    },
+    {
+      "id": 4,
+      "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 9 },
+      "targets": [
+        {
+          "expr": "sum(rate(container_network_transmit_bytes_total{namespace=\"kaniko-benchmark\", container!=\"\", pod!=\"\"}[1m])) by (pod)",
+          "legendFormat": "{{pod}} → transmit",
+          "refId": "A"
+        }
+      ],
+      "title": "Network transmit (bytes/s) by pod",
+      "type": "timeseries"
+    },
+    {
+      "id": 5,
+      "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 9 },
+      "targets": [
+        {
+          "expr": "sum(rate(container_network_receive_bytes_total{namespace=\"kaniko-benchmark\", container!=\"\", pod!=\"\"}[1m])) by (pod)",
+          "legendFormat": "{{pod}} → receive",
+          "refId": "A"
+        }
+      ],
+      "title": "Network receive (bytes/s) by pod",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": ["kaniko", "buildkit", "benchmark"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Kaniko vs BuildKit — ресурсы во время сборки",
+  "uid": "kaniko-vs-buildkit",
+  "version": 1,
+  "weekStart": ""
+}

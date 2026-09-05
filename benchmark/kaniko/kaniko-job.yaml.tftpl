@@ -1,0 +1,92 @@
+# Job: сборка одного и того же образа через Kaniko в Managed Yandex K8s.
+#  - контекст: ConfigMap build-context (Dockerfile + app.py + app.sh), mount в /workspace
+#  - auth: короткоживущий IAM-токен из метаданных ноды (сервисного аккаунта)
+#    -> docker config в /kaniko/.docker
+#  - замер времени: wrapper /scripts/time-build.sh (из ConfigMap scripts) пишет в /artifacts/times.txt
+#  - результат пушится в Yandex Container Registry: registry.yandex.cloud/<id>/kaniko:<tag>
+#
+# Генерируется Terraform'ом из benchmark/kaniko/kaniko-job.yaml.tftpl,
+# registry_id подставляется из yandex_container_registry.registry.id.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kaniko-build
+  namespace: kaniko-benchmark
+  labels:
+    app: kaniko-buildkit-benchmark
+    tool: kaniko
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: kaniko-buildkit-benchmark
+        tool: kaniko
+    spec:
+      restartPolicy: Never
+      initContainers:
+        # Регистрируем авторизацию через IAM-токен до старта основного контейнера.
+        - name: auth
+          image: alpine:3.20
+          command:
+            - /bin/sh
+            - -c
+            - |
+              TOKEN=$(/scripts/get-iam-token.sh)
+              /scripts/write-docker-config.sh /kaniko/.docker iam "$TOKEN"
+          volumeMounts:
+            - name: kaniko-docker
+              mountPath: /kaniko/.docker
+            - name: scripts
+              mountPath: /scripts
+      containers:
+        - name: kaniko
+          image: gcr.io/kaniko-project/executor:v1.23.2-debug
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # ждать, пока init-container запишет config (общий volume)
+              until [ -f /kaniko/.docker/config.json ]; do sleep 1; done
+              exec /scripts/time-build.sh kaniko \
+                /kaniko/executor \
+                --dockerfile=Dockerfile \
+                --context=dir:///workspace \
+                --destination=registry.yandex.cloud/${registry_id}/kaniko-benchmark:latest \
+                --cache=true \
+                --cache-repo=registry.yandex.cloud/${registry_id}/kaniko-benchmark-cache
+          env:
+            - name: DOCKER_CONFIG
+              value: /kaniko/.docker
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "1Gi"
+            limits:
+              cpu: "4000m"
+              memory: "4Gi"
+          volumeMounts:
+            - name: build-context
+              mountPath: /workspace
+            - name: kaniko-docker
+              mountPath: /kaniko/.docker
+            - name: scripts
+              mountPath: /scripts
+            - name: workdir
+              mountPath: /tmp
+            - name: artifacts
+              mountPath: /artifacts
+      volumes:
+        - name: build-context
+          configMap:
+            name: build-context
+        - name: kaniko-docker
+          emptyDir: {}
+        - name: scripts
+          configMap:
+            name: benchmark-scripts
+          defaultMode: 0755
+        - name: workdir
+          emptyDir: {}
+        - name: artifacts
+          emptyDir: {}
