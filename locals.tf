@@ -13,9 +13,6 @@ locals {
 
   grafana_fqdn = "grafana.${local.ingress_public_ip}.sslip.io"
 
-  # Мониторинг живёт в namespace vmks (по AGENTS.md).
-  monitoring_namespace = "vmks"
-
   # ----- Yandex Container Registry -----
   # Имя registry и полный адрес для пуша собранных образов.
   # Стандартный формат Yandex Container Registry: registry.yandex.cloud/<registry_id>/<repo>:<tag>.

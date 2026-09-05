@@ -25,7 +25,7 @@ output "registry_server" {
 
 output "apply_benchmark_command" {
   description = "Команды применения манифестов бенчмарка"
-  value = <<-EOT
+  value       = <<-EOT
     kubectl apply -f benchmark/namespace.yaml \\
       -f benchmark/scripts-configmap.yaml \\
       -f benchmark/build-context-configmap.yaml \\

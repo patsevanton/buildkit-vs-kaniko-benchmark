@@ -57,7 +57,7 @@ Terraform поднимает:
 - Managed K8s master 1.33 (regional, 3 зоны), node group из 3 preemptible нод `standard-v3` 4 vCPU / 8 ГБ;
 - Traefik (ingress) для доступа к Grafana через `sslip.io`;
 - **Yandex Container Registry** + IAM-привязку для сервисного аккаунта кластера (`container-registry.images.pusher` / `container-registry.images.puller`);
-- VictoriaMetrics k8s-stack в namespace **`vmks`** (с отключёнными scrape и правилами для control-plane — как того требует AGENTS.md для Managed Yandex K8s).
+- VictoriaMetrics k8s-stack в namespace **`vmks`** (с отключёнными scrape и правилами для control-plane — как того требует AGENTS.md для Managed Yandex K8s). Устанавливается **отдельным шагом** через скрипт `install-vmks.sh` после `terraform apply` — terraform только рендерит `values/vmks-values.yaml`.
 
 ## Сравниваемые варианты
 
@@ -83,6 +83,16 @@ terraform apply -auto-approve
 - `grafana_url` + `grafana_admin_password_command` — доступ к дашборду;
 - `registry_server` — адрес `registry.yandex.cloud/<id>`;
 - `apply_benchmark_command` — команда применения манифестов бенчмарка.
+
+> Terraform **не устанавливает** VictoriaMetrics k8s-stack (vmks): он только рендерит `values/vmks-values.yaml`. Сама установка — отдельным шагом ниже.
+
+### 1a. Установка мониторинга (vmks)
+
+```bash
+./install-vmks.sh
+```
+
+Скрипт проверяет доступность кластера, наличие отрендеренного `values/vmks-values.yaml` (создаётся при `terraform apply`) и выполняет `helm upgrade --install` в namespace `vmks`. Идемпотентен — повторный запуск безопасен.
 
 ### 2. Доступ к кластеру
 
@@ -225,7 +235,8 @@ Kaniko — «заниженный порог входа» для безопас�
 | `ip-dns.tf` | Публичный IP балансировщика Traefik |
 | `k8s.tf` | Managed K8s (master 1.33, региональный), node group, Traefik |
 | `registry.tf` | Yandex Container Registry + IAM-привязка для SA кластера |
-| `monitoring.tf`, `values/vmks-values.yaml.tftpl` | VictoriaMetrics k8s-stack в namespace `vmks` (с отключёнными scrape control-plane) |
+| `monitoring.tf`, `values/vmks-values.yaml.tftpl` | Рендер values для VictoriaMetrics k8s-stack в namespace `vmks` (с отключёнными scrape control-plane); установка — через `install-vmks.sh` |
+| `install-vmks.sh` | Установка vmks после `terraform apply` (`helm upgrade --install`, идемпотентно) |
 | `benchmark.tf` | Рендер job-манифестов из `.tftpl` (registry_id) |
 | `benchmark/namespace.yaml` | Namespace `kaniko-benchmark` |
 | `benchmark/scripts-configmap.yaml` | Скрипты: замер времени, IAM-токен, docker-config |
@@ -239,4 +250,5 @@ Kaniko — «заниженный порог входа» для безопас�
 
 - Yandex Cloud CLI (`yc`) с авторизацией, Terraform ≥ 1.3;
 - `folder_id` в `terraform.tfvars`;
+- `helm` v3 (для установки vmks через `install-vmks.sh`);
 - (для прогона) кластер развёрнут `terraform apply`, установлен `kubectl`.
