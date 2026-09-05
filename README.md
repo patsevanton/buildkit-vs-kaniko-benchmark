@@ -130,12 +130,13 @@ kubectl apply -f benchmark/namespace.yaml \
 <summary>Что внутри манифестов</summary>
 
 - `benchmark/namespace.yaml` — namespace `kaniko-benchmark`;
-- `benchmark/scripts-configmap.yaml` — скрипты: замер времени (`time-build.sh`), получение IAM-токена, запись docker-config и материализация дерева контекста (`setup-workspace.sh`). Никаких секретов в манифестах нет — токен живёт 12 часов и берётся из метаданных ноды прямо во время запуска;
+- `benchmark/scripts-configmap.yaml` — скрипты: замер времени (`time-build.sh`), получение IAM-токена, запись docker-config. Никаких секретов в манифестах нет — токен живёт 12 часов и берётся из метаданных ноды прямо во время запуска;
 - `benchmark/generated/` — **отрендеренные Terraform** манифесты:
-  - `build-context-<project>.yaml` — ConfigMap контекста (плоские ключи, вложенные пути — через `__` → `/`);
   - `<project>-kaniko-job.yaml` — Job Kaniko на проект;
   - `<project>-buildkit-job.yaml` — Job BuildKit на проект (daemonless, от root);
   - (`benchmark/generated/` в `.gitignore` — файлы регенерируются при `terraform apply`.)
+
+Контекст сборки (Dockerfile + исходники) берётся через **git clone** из публичного репозитория `github.com/patsevanton/buildkit-vs-kaniko-benchmark` (классическая схема разработки). **Каждому проекту соответствует отдельная ветка** (имя = имя проекта: `flask`, `nestjs`, …), в корне ветки лежат Dockerfile и исходники. Init-контейнер `git-clone` клонирует свою ветку прямо в `/workspace`, из которого идёт сборка. Репозиторий задаётся переменной `benchmark_git_repo`.
 </details>
 
 ### 4. Запуск прогона
@@ -293,10 +294,9 @@ Kaniko — «заниженный порог входа» для безопас�
 | `weights.tf` | S3-бакет `kaniko-vs-buildkit-weights` (public-read) для весов ML-проекта, вывод `ml_weights_url` |
 | `monitoring.tf`, `values/vmks-values.yaml.tftpl` | Рендер values для VictoriaMetrics k8s-stack в namespace `vmks` (с отключёнными scrape control-plane); установка — через `install-vmks.sh` |
 | `install-vmks.sh` | Установка vmks после `terraform apply` (`helm upgrade --install`, идемпотентно) |
-| `benchmark.tf` | Рендер 7 ConfigMap контекста + 14 job-манифестов из `.tftpl` (registry_id, project) |
+| `benchmark.tf` | Рендер 14 job-манифестов из `.tftpl` (registry_id, project, git_url/git_branch) |
 | `benchmark/namespace.yaml` | Namespace `kaniko-benchmark` |
-| `benchmark/scripts-configmap.yaml` | Скрипты: замер времени, IAM-токен, docker-config, `setup-workspace.sh` |
-| `benchmark/build-context-configmap.yaml.tftpl` | Шаблон ConfigMap контекста (плоские ключи `__` → `/`) |
+| `benchmark/scripts-configmap.yaml` | Скрипты: замер времени, IAM-токен, docker-config |
 | `benchmark/kaniko/kaniko-job.yaml.tftpl` | Job kaniko на проект (генерируется в `benchmark/generated/`) |
 | `benchmark/buildkit/buildkit-job.yaml.tftpl` | Job buildkit daemonless от root (генерируется) |
 | `benchmark/projects/<project>/` | 7 мини-проектов: flask, nestjs, nextjs, nuxt, go, android, ml-pytorch |

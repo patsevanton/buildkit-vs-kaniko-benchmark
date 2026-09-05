@@ -1,5 +1,8 @@
 # Job: сборка контекста ${project} через BuildKit (daemonless, root) в Managed Yandex K8s.
-#  - контекст: ConfigMap build-context-${project} (Dockerfile + исходники), mount в /workspace
+#  - контекст: git-ветка ${git_branch} репозитория ${git_url}, клонируется
+#    init-контейнером git-clone прямо в /workspace (Dockerfile + исходники в корне ветки).
+#    Сборка идёт из локального /workspace через --local.
+#    (Классическая схема: контекст — git-репозиторий; ветка на проект.)
 #  - auth: IAM-токен из метаданных ноды -> ~/.docker/config.json (docker config)
 #  - как и kaniko, демон buildkitd работает от root; никакого Unconfined/user-namespaces нет
 #  - кэш: registry-кэш через --import-cache/--export-cache type=registry
@@ -12,7 +15,7 @@
 # поднимает встроенный buildkitd внутри того же контейнера.
 #
 # Генерируется Terraform'ом из benchmark/buildkit/buildkit-job.yaml.tftpl,
-# registry_id и project подставляются в benchmark.tf.
+# registry_id, project, git_url, git_branch подставляются в benchmark.tf.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -33,28 +36,24 @@ spec:
     spec:
       restartPolicy: Never
       initContainers:
-# Материализуем дерево контекста из плоского ConfigMap (ключи с __ -> /).
-        - name: setup-workspace
-          image: alpine:3.20
+# Клонируем ветку проекта репозитория прямо в /workspace (Dockerfile + исходники в корне ветки).
+        - name: git-clone
+          image: alpine/git:v2.54.0
           command:
             - /bin/sh
             - -c
             - |
-              /scripts/setup-workspace.sh
+              set -eu
+              git clone --depth 1 --branch "$${GIT_BRANCH}" "$${GIT_URL}" /workspace
+              ls -la /workspace
           env:
-            - name: SRC_DIR
-              value: /config
-            - name: DST_DIR
-              value: /workspace
-            - name: TARGET_UID
-              value: "0"
+            - name: GIT_URL
+              value: ${git_url}
+            - name: GIT_BRANCH
+              value: ${git_branch}
           volumeMounts:
-            - name: build-context
-              mountPath: /config
             - name: workdir
               mountPath: /workspace
-            - name: scripts
-              mountPath: /scripts
 # Записываем registry auth в /root/.docker/config.json.
         - name: auth
           image: alpine:3.20
@@ -105,9 +104,6 @@ spec:
             - name: artifacts
               mountPath: /artifacts
       volumes:
-        - name: build-context
-          configMap:
-            name: build-context-${project}
         - name: workdir
           emptyDir: {}
         - name: docker-config

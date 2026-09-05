@@ -26,8 +26,8 @@ Operational notes for working with this repo's infrastructure (Yandex Cloud + Ma
 ## Известные нюансы
 
 - **BuildKit в этом бенчмарке работает от root** (`moby/buildkit:v0.32.2`, обычный образ) в daemonless-режиме — rootless-настройки не нужны. Если вернётесь к rootless-режиму, он требует unprivileged user namespaces на нодах (при падении с `/proc/sys/user/max_user_namespaces` — DaemonSet-воркараунд из `examples/kubernetes/sysctl-userns.privileged.yaml` в moby/buildkit).
-- Job-манифесты и ConfigMap контекста `benchmark/generated/*` **генерируются Terraform** из `.tftpl` (подставляются реальный `registry_id` и проект). Каталог в `.gitignore` — не коммитить сгенерированные файлы.
-- Контекст сборки передаётся **плоским ConfigMap** (`build-context-<project>`), вложенные пути кодируются `__` → `/`; init-контейнер `setup-workspace` восстанавливает дерево в `/workspace`. Ключи ConfigMap не могут содержать `/`.
+- Job-манифесты `benchmark/generated/*` **генерируются Terraform** из `.tftpl` (подставляются реальный `registry_id`, проект и `benchmark_git_repo`). Каталог в `.gitignore` — не коммитить сгенерированные файлы.
+- Контекст сборки передаётся **git clone** в init-контейнере `git-clone`: каждый проект собирается из **отдельной ветки** репозитория `benchmark_git_repo` (имя ветки = имя проекта, Dockerfile + исходники в корне ветки). По умолчанию репозиторий `patsevanton/buildkit-vs-kaniko-benchmark`.
 - Очередь бенчмарка: пара `kaniko+buildkit` одного проекта параллельно, между проектами — последовательно (`benchmark/run-benchmark.sh`).
 - После `terraform apply`, если вы меняете registry/кластер — перепримените джобы заново (`kubectl apply -f benchmark/generated/`), т.к. сгенерированные YAML обновятся.
 

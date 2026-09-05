@@ -1,5 +1,9 @@
 # Отрисовка манифестов бенчмарка c registry_id из созданного Yandex Container Registry.
 # Применяются вручную через kubectl apply (порядок описан в README.md).
+#
+# Контекст сборки передаётся из git-репозитория: init-контейнер git-clone в каждой
+# Job клонирует отдельную ветку <project> (Dockerfile + исходники в корне ветки)
+# прямо в /workspace (классическая схема: контекст — git-репозиторий, ветка на проект).
 
 locals {
   benchmark_projects = [
@@ -12,28 +16,10 @@ locals {
     "ml-pytorch",
   ]
 
-  # Формирует data-блок ConfigMap из файлов benchmark/projects/<project>.
-  # Вложенные пути кодируются "__" -> "/" (ключи ConfigMap не могут содержать '/').
-  # Каждый файл -> "  key: |\n" + строки с 4-пробельным отступом.
-  context_body = {
-    for p in local.benchmark_projects :
-    p => join("\n", [
-      for f in fileset(path.module, "benchmark/projects/${p}/**/*") :
-      format("  %s: |\n%s",
-        replace(trimprefix(f, "benchmark/projects/${p}/"), "/", "__"),
-        indent(4, file(f))
-      )
-    ])
-  }
-
-  # Имя и контент context ConfigMap для каждого проекта.
-  context_configmaps = [for p in local.benchmark_projects : {
-    name = "build-context-${p}"
-    content = templatefile("${path.module}/benchmark/build-context-configmap.yaml.tftpl", {
-      project      = p
-      context_data = local.context_body[p]
-    })
-  }]
+  # URL публичного git-репозитория с контекстом сборки.
+  # Ветка для каждого проекта = имя проекта (benchmark_projects). Базовый
+  # git-репозиторий настраивается переменной benchmark_git_repo.
+  benchmark_git_url = "https://github.com/${var.benchmark_git_repo}.git"
 
   # Пара джобой на проект: kaniko + buildkit.
   job_templates = flatten([for p in local.benchmark_projects : [
@@ -42,6 +28,8 @@ locals {
       content = templatefile("${path.module}/benchmark/kaniko/kaniko-job.yaml.tftpl", {
         registry_id = yandex_container_registry.registry.id
         project     = p
+        git_url     = local.benchmark_git_url
+        git_branch  = p
       })
     },
     {
@@ -49,16 +37,11 @@ locals {
       content = templatefile("${path.module}/benchmark/buildkit/buildkit-job.yaml.tftpl", {
         registry_id = yandex_container_registry.registry.id
         project     = p
+        git_url     = local.benchmark_git_url
+        git_branch  = p
       })
     },
   ]])
-}
-
-resource "local_file" "benchmark_configmaps" {
-  for_each        = { for cm in local.context_configmaps : cm.name => cm.content }
-  content         = each.value
-  filename        = "${path.module}/benchmark/generated/${each.key}.yaml"
-  file_permission = "0644"
 }
 
 resource "local_file" "benchmark_jobs" {
