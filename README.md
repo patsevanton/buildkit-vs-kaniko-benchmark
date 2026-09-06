@@ -114,6 +114,11 @@ terraform apply -auto-approve
 - `ml_weights_url` — URL весов ML-модели (бакет `kaniko-vs-buildkit-weights`).
 
 > Для проекта `ml-pytorch` перед прогоном нужно **один раз залить веса** в созданный бакет (см. `TODO.md`). Без этого джоб ml-pytorch упадёт на скачивании.
+>
+> **Какой файл качать:** модель `google-bert/bert-large-uncased`, файл `pytorch_model.bin` (~1.28 ГБ):
+> `https://huggingface.co/google-bert/bert-large-uncased/resolve/main/pytorch_model.bin`.
+> Его нужно скачать и залить в бакет `kaniko-vs-buildkit-weights` под ключом `model.bin`
+> (команды заливки — в `TODO.md`).
 
 > Terraform **не устанавливает** VictoriaMetrics k8s-stack (vmks) и GitLab Runner — он только рендерит `values/vmks-values.yaml`. Установка — отдельными шагами ниже.
 
