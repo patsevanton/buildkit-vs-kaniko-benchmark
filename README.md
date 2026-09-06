@@ -7,7 +7,7 @@
 Классических ответов два — **Kaniko** и **BuildKit**:
 
 - **Kaniko** (`gcr.io/kaniko-project/executor`) — инструмент от Google, который собирает образы **без privileged-контейнера**, запускаясь из обычного контейнера (внутри работает от root, но без привилегий ноды). Репозиторий [GoogleContainerTools/kaniko](https://github.com/GoogleContainerTools/kaniko) **архивирован владельцем 3 июня 2025 года** и доступен только для чтения — проект больше не развивается.
-- **BuildKit** (`moby/buildkit`) — движок сборки, который с 2022 года стоит за `docker build` в десктопном Docker (через `buildx`). В Kubernetes запускается **daemonless**: один контейнер поднимает свой встроенный демон `buildkitd`, собирает и пушит образ. В этом бенчмарке демон работает **от root** (как у Kaniko) — без user namespaces, без `Unconfined`/apparmor-нюансов, условия для обоих инструментов уравнены.
+- **BuildKit** (`moby/buildkit`) — движок сборки, который с 2022 года стоит за `docker build` в десктопном Docker (через `buildx`). В Kubernetes запускается **daemonless**: один контейнер поднимает свой встроенный демон `buildkitd`, собирает и пушит образ. В этом бенчмарке демон работает в **rootless-режиме** (`moby/buildkit:v0.32.2-rootless`) — без privileged, как и Kaniko; для этого build-контейнеру нужен ослабленный seccomp/apparmor (`Unconfined`), а нодам — unprivileged user namespaces.
 
 Этот репозиторий — **воспроизводимый бенчмарк** на Managed Yandex K8s: **7 проектов** разных языков и фреймворков собираются обоими инструментами в одних и тех же условиях, с замером времени, потребления CPU/RAM и поведения кэша. В конце — **итоговая сводная таблица** и разбор **преимуществ и недостатков** каждого подхода для продакшна.
 
@@ -61,7 +61,7 @@ flowchart LR
     end
 
     subgraph YCR["Yandex Container Registry"]
-        REG["registry.yandex.cloud/&lt;id&gt;<br/>&lt;project&gt;-kaniko / &lt;project&gt;-buildkit<br/>+ &lt;project&gt;-*-cache"]
+        REG["cr.yandex/&lt;id&gt;<br/>&lt;project&gt;-kaniko / &lt;project&gt;-buildkit<br/>+ &lt;project&gt;-*-cache"]
     end
 
     MET["IAM-токен из метаданных ноды<br/>169.254.169.254 (сервисный аккаунт)"]
@@ -93,9 +93,9 @@ Terraform поднимает:
 | Вариант | Образ | Запуск | Auth в registry |
 |---|---|---|---|
 | **Kaniko** | `gcr.io/kaniko-project/executor:v1.23.2-debug` | Job GitLab CI (под раннера, обычный контейнер без privileged, root внутри) | IAM-токен из метаданных ноды → `config.json` в `/kaniko/.docker` |
-| **BuildKit** | `moby/buildkit:v0.32.2` | Job GitLab CI, **daemonless** (`buildctl-daemonless.sh`), демон `buildkitd` от root | IAM-токен из метаданных ноды → `config.json` в `/root/.docker` |
+| **BuildKit** | `moby/buildkit:v0.32.2-rootless` | Job GitLab CI, **daemonless** (`buildctl-daemonless.sh`), демон `buildkitd` rootless (`--oci-worker-no-process-sandbox`) | IAM-токен из метаданных ноды → `config.json` в `~/.docker` |
 
-Оба пушат в один и тот же Yandex Container Registry (`registry.yandex.cloud/<registry-id>/`), по своему репозиторию на проект (`<project>-kaniko`, `<project>-buildkit`). Оба инструмента работают **от root** и **daemonless** — условия замеров уравнены, разница — только в самом инструменте сборки.
+Оба пушат в один и тот же Yandex Container Registry (`cr.yandex/<registry-id>/`), по своему репозиторию на проект (`<project>-kaniko`, `<project>-buildkit`). Оба инструмента работают **без privileged** и **daemonless** — условия замеров уравнены, разница — только в самом инструменте сборки.
 
 ## Развёртывание
 
@@ -166,7 +166,7 @@ Variables** задать:
 | `YCR_REGISTRY_ID` | `terraform output -raw registry_id` (id registry, `cr...`) |
 
 Переменная `YCR_REGISTRY` (адрес registry) задана по умолчанию в `.gitlab-ci.yml`
-как `registry.yandex.cloud` — её можно переопределить при необходимости.
+как `cr.yandex` — её можно переопределить при необходимости.
 
 Секретов хранить не нужно: auth выполняется IAM-токеном из метаданных ноды.
 
@@ -176,6 +176,60 @@ Variables** задать:
 исходники + `.gitlab-ci.yml`) кладётся в корень main-ветки соответствующего
 репозитория. Имена репозиториев: `android`, `flask`, `golang`, `ml-pytorch`,
 `nestjs`, `nextjs`, `nuxtjs`.
+
+Эталонный `.gitlab-ci.yml` (одинаков для всех 7 проектов; `$CI_PROJECT_NAME`
+автоматически подставляет имя репозитория):
+
+```yaml
+variables:
+  # cr.yandex — верный хост Yandex Container Registry
+  # (registry.yandex.cloud не существует в DNS).
+  YCR_REGISTRY: cr.yandex
+
+stages:
+  - build
+
+before_script: &docker-auth
+  # Короткоживущий IAM-токен из метаданных ноды -> docker config для push/pull.
+  - mkdir -p "$DOCKER_CONFIG"
+  - TOKEN=$(wget -q -O - --header="Metadata-Flavor: Google" "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  - AUTH_B64=$(printf 'iam:%s' "$TOKEN" | base64 | tr -d '\n')
+  - printf '{"auths":{"%s":{"auth":"%s"}}}' "$YCR_REGISTRY" "$AUTH_B64" > "$DOCKER_CONFIG/config.json"
+
+kaniko-build:
+  stage: build
+  image: gcr.io/kaniko-project/executor:v1.23.2-debug
+  variables:
+    DOCKER_CONFIG: /kaniko/.docker
+  script:
+    - /kaniko/executor
+        --dockerfile=Dockerfile
+        --context=dir://$CI_PROJECT_DIR
+        --destination="$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-kaniko:latest"
+        --cache=true
+        --cache-repo="$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-kaniko-cache"
+
+buildkit-build:
+  stage: build
+  image: moby/buildkit:v0.32.2-rootless
+  variables:
+    DOCKER_CONFIG: /home/user/.docker
+    XDG_RUNTIME_DIR: /tmp/buildkit
+    BUILDKITD_FLAGS: --oci-worker-no-process-sandbox
+  script:
+    - buildctl-daemonless.sh build
+        --frontend dockerfile.v0
+        --local "context=$CI_PROJECT_DIR"
+        --local "dockerfile=$CI_PROJECT_DIR"
+        --output "type=image,name=$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-buildkit:latest,push=true"
+        --import-cache "type=registry,ref=$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-buildkit-cache"
+        --export-cache "type=registry,ref=$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-buildkit-cache,mode=max"
+```
+
+Ослабленный securityContext для rootless BuildKit (`seccompProfile: Unconfined`,
+`appArmorProfile: Unconfined`) задаётся на уровне раннера в
+`gitlab-runner/values.yaml` (`build_container_security_context`) — в
+`.gitlab-ci.yml` его прописывать не нужно.
 
 ### 4. Запуск прогона
 
@@ -284,11 +338,11 @@ job'а в GitLab (страница пайплайна или GitLab API).
 - **Сложнее.** Daemonless-джоб поднимает встроенный демон, требует понимания `buildctl`/`buildkitd` и кэша.
 - **Ресурсы.** Многопоточность = большее пиковое потребление CPU/RAM, которое нужно учитывать в requests/limits.
 - **Оба кэша эфемерны.** В этом бенчмарке ни Kaniko, ни BuildKit не хранят локальный кэш между прогонами (Kaniko не пишет кэш на диск по умолчанию, BuildKit живёт в daemonless-поде без PVC) — теплота кэша обеспечивается только registry-кэшем. Kaniko-кэш в `--cache-repo` и BuildKit-кэш в `--export-cache type=registry` в равной степени переживают пересоздание подов.
-- **Rootless-режим (если он нужен) имеет нюансы.** В этом бенчмарке BuildKit работает от root (как и Kaniko), поэтому rootless-настройки не нужны. Если в продакшне потребуется rootless — там будут уместны user namespaces, `oci-worker-no-process-sandbox` и отключение seccomp/apparmor на уровне пода.
+- **Rootless-режим имеет нюансы.** В этом бенчмарке BuildKit работает rootless (как и Kaniko — без privileged), поэтому нужны unprivileged user namespaces на нодах, `oci-worker-no-process-sandbox` и ослабленный seccomp/apparmor (`Unconfined`) на build-контейнере. Если ноды не дают user namespaces — см. DaemonSet-воркараунд из `examples/kubernetes/sysctl-userns.privileged.yaml` в moby/buildkit.
 
 ## Вывод
 
-Kaniko — «заниженный порог входа» для безопасной сборки без привилегий (без privileged); подходит, когда нужно просто и надёжно собрать типовой образ в managed-кластере. BuildKit — значительный прирост скорости и выразительности Dockerfile ценой сложности daemonless-настройки и большего потребления ресурсов. В этом бенчмарке оба инструмента работают **от root** в одинаковых условиях, поэтому разница сводится к скорости и кэшированию.
+Kaniko — «заниженный порог входа» для безопасной сборки без привилегий (без privileged); подходит, когда нужно просто и надёжно собрать типовой образ в managed-кластере. BuildKit — значительный прирост скорости и выразительности Dockerfile ценой сложности daemonless-настройки и большего потребления ресурсов. В этом бенчмарке оба инструмента работают **без privileged** в одинаковых условиях, поэтому разница сводится к скорости и кэшированию.
 
 Итоговую рекомендацию нужно давать по числам из сводной таблицы: если сборка редкая и Dockerfile типовой, Kaniko достаточно; если собираете часто, образы тяжёлые (Node/Gradle/ML) и хочется скорости — BuildKit, но с правильной конфигурацией кэша и ресурсов.
 

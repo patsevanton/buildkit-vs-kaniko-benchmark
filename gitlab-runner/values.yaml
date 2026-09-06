@@ -46,10 +46,16 @@ runners:
         helper_cpu_limit = "500m"
         helper_memory_request = "128Mi"
         helper_memory_limit = "512Mi"
-        # Build-контейнер работает от root (как kaniko, так и buildkit),
-        # но без privileged — условия замеров уравнены с прежним стендом.
+        # Build-контейнер работает без privileged (условия замеров уравнены
+        # с прежним стендом). BuildKit в rootless-режиме требует ослабленный
+        # securityContext: seccomp/apparmor Unconfined (нужен unshare mount ns).
         privileged = false
         allow_privilege_escalation = true
+        [runners.kubernetes.build_container_security_context]
+          [runners.kubernetes.build_container_security_context.seccomp_profile]
+            type = "Unconfined"
+          [runners.kubernetes.build_container_security_context.app_armor_profile]
+            type = "Unconfined"
         # Имена подов джобов не важны для Grafana: инструменты различаются
         # по label `image` метрик cAdvisor (…/kaniko… vs …/buildkit…).
         pull_policy = "if-not-present"

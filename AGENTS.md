@@ -25,7 +25,7 @@ Operational notes for working with this repo's infrastructure (Yandex Cloud + Ma
 
 ## Известные нюансы
 
-- **BuildKit в этом бенчмарке работает от root** (`moby/buildkit:v0.32.2`, обычный образ) в daemonless-режиме — rootless-настройки не нужны. Если вернётесь к rootless-режиму, он требует unprivileged user namespaces на нодах (при падении с `/proc/sys/user/max_user_namespaces` — DaemonSet-воркараунд из `examples/kubernetes/sysctl-userns.privileged.yaml` в moby/buildkit).
+- **BuildKit в этом бенчмарке работает в rootless-режиме** (`moby/buildkit:v0.32.2-rootless`) в daemonless-режиме — условия уравнены с Kaniko (оба без privileged). Rootless требует unprivileged user namespaces на нодах (при падении с `/proc/sys/user/max_user_namespaces` — DaemonSet-воркараунд из `examples/kubernetes/sysctl-userns.privileged.yaml` в moby/buildkit), а build-контейнеру нужен ослабленный securityContext: `seccompProfile: Unconfined` + `appArmorProfile: Unconfined` (задаётся в `gitlab-runner/values.yaml` через `build_container_security_context`).
 - Сборка запускается **GitLab Runner'ом (executor kubernetes)**, развёрнутым в этом же кластере через helm (см. `gitlab-runner/`). Токен раннера передаётся скрипту аргументом и в репозиторий не коммитится.
 - Контекст сборки — **сам репозиторий проекта** (Dockerfile + исходники в корне main-ветки). Каждый из 7 проектов — отдельный репозиторий группы `gitlab.com/buildkit-vs-kaniko-benchmark`.
 - Пара `kaniko+buildkit` одного проекта запускается GitLab'ом параллельно (одна стадия в `.gitlab-ci.yml`); между проектами — независимые пайплайны.

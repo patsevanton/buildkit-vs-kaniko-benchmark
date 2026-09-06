@@ -66,13 +66,16 @@ kubectl -n gitlab-runner logs deploy/gitlab-runner
 | `runners.tags` | `k8s-benchmark` (тег, по которому джобы выбирают раннер) |
 | `runners.runUntagged` | `false` (принимает только джобы с тегом) |
 | build-контейнер CPU/RAM | request 1 CPU / 1 GiB, limit 4 CPU / 4 GiB |
+| `build_container_security_context` | seccomp/apparmor `Unconfined` (нужно для rootless BuildKit) |
 
 Лимиты build-контейнера (`cpu_limit = "4"`, `memory_limit = "4Gi"`) совпадают с
 лимитами старых K8s-джобов бенчмарка — условия замеров сохраняются.
 
-Build-контейнер работает от root (как kaniko, так и buildkit) с
-`privileged = false` и `allow_privilege_escalation = true` — daemonless-сборка
-без docker.sock и без privileged-ноды.
+Build-контейнер работает без privileged (`privileged = false`,
+`allow_privilege_escalation = true`) — daemonless-сборка без docker.sock и без
+privileged-ноды. Для rootless BuildKit build-контейнеру задан ослабленный
+securityContext (`seccompProfile: Unconfined`, `appArmorProfile: Unconfined`),
+Kaniko это не нужно, но условия джобов уравнены.
 
 ## Примечания
 

@@ -15,8 +15,8 @@ locals {
 
   # ----- Yandex Container Registry -----
   # Имя registry и полный адрес для пуша собранных образов.
-  # Стандартный формат Yandex Container Registry: registry.yandex.cloud/<registry_id>/<repo>:<tag>.
+  # Стандартный формат Yandex Container Registry: cr.yandex/<registry_id>/<repo>:<tag>.
   registry_name   = "kaniko-buildkit"
   registry_id     = yandex_container_registry.registry.id
-  registry_server = "registry.yandex.cloud/${yandex_container_registry.registry.id}"
+  registry_server = "cr.yandex/${yandex_container_registry.registry.id}"
 }
