@@ -6,19 +6,18 @@
 # Использование:
 #   delete-registry-images.sh <registry_id> [--with-repositories]
 #
-# Аутентификация — через IAM API key (переменная окружения YC_API_KEY).
-# Создать ключ: yc iam api-key create --service-account-name <sa>  (или в веб-консоли).
+# Аутентификация — через IAM-токен (переменная окружения YC_TOKEN).
+# Получить токен: export YC_TOKEN=$(yc iam create-token)
 
 set -euo pipefail
 
-IAM_ENDPOINT="https://iam.api.cloud.yandex.net/iam/v1/tokens"
 REGISTRY_ENDPOINT="https://container-registry.api.cloud.yandex.net/container-registry/v1"
 
 usage() {
   echo "Использование: $0 <registry_id> [--with-repositories]" >&2
-  echo "  registry_id         ID реестра (cr...); можно получить: terraform output -raw registry_id" >&2
+  echo "  registry_id         ID реестра (cr...); можно получить: terraform output -raw registry_id; echo" >&2
   echo "  --with-repositories дополнительно удалить пустые репозитории реестра" >&2
-  echo "Env: YC_API_KEY — IAM API key сервисного аккаунта с ролью container-registry.images.pusher" >&2
+  echo "Env: YC_TOKEN — IAM-токен сервисного аккаунта (yc iam create-token)" >&2
   exit 1
 }
 
@@ -27,7 +26,7 @@ REGISTRY_ID="$1"
 WITH_REPOS=false
 [[ $# -ge 2 && "$2" == "--with-repositories" ]] && WITH_REPOS=true
 
-: "${YC_API_KEY:?Установите YC_API_KEY (IAM API key)}"
+: "${YC_TOKEN:?Установите YC_TOKEN (yc iam create-token)}"
 
 log() { echo "[$(date -u +%H:%M:%S)] $*" >&2; }
 
@@ -38,12 +37,7 @@ api() { # api <method> <path> [json_body]
   curl "${args[@]}" "$REGISTRY_ENDPOINT$path"
 }
 
-log "Получение IAM-токена..."
-TOKEN=$(curl -sS -X POST "$IAM_ENDPOINT" \
-  -H "Content-Type: application/json" \
-  -d "{\"apiKey\":\"$YC_API_KEY\"}" \
-  | jq -r '.iamToken // empty')
-[[ -n "$TOKEN" ]] || { echo "Ошибка: не удалось получить IAM-токен" >&2; exit 1; }
+TOKEN="$YC_TOKEN"
 
 log "Получение списка образов реестра $REGISTRY_ID..."
 PAGE_TOKEN=""

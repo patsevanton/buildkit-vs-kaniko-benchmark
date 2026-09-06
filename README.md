@@ -218,7 +218,7 @@ Variables** задать:
 
 | Переменная | Значение |
 |---|---|
-| `YCR_REGISTRY_ID` | `terraform output -raw registry_id` (id registry, `cr...`) |
+| `YCR_REGISTRY_ID` | `terraform output -raw registry_id; echo` (id registry, `cr...`) |
 
 Переменная `YCR_REGISTRY` (адрес registry) задана по умолчанию в `.gitlab-ci.yml`
 как `cr.yandex` — её можно переопределить при необходимости.
@@ -435,6 +435,21 @@ Kaniko — «заниженный порог входа» для безопас�
 
 Репозитории проектов (в группе `gitlab.com/buildkit-vs-kaniko-benchmark`) содержат
 `.gitlab-ci.yml` с двумя job'ами — `kaniko-build` и `buildkit-build`.
+
+## Очистка registry (перед `terraform destroy`)
+
+Скрипт `scripts/delete-registry-images.sh` удаляет все образы (и, опционально,
+репозитории) из Yandex Container Registry через REST API — без CLI `yc`.
+Аутентификация — через IAM-токен:
+
+```bash
+export YC_TOKEN=$(yc iam create-token)
+./scripts/delete-registry-images.sh $(terraform output -raw registry_id) --with-repositories
+```
+
+Флаг `--with-repositories` дополнительно удаляет пустые репозитории реестра
+(иначе `terraform destroy` может упасть на непустом registry). После очистки
+можно выполнять `terraform destroy`.
 
 ## Требования
 
