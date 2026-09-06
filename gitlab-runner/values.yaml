@@ -35,6 +35,7 @@ runners:
   # (те же 4 CPU / 4 GiB, что были у старых K8s-джобов бенчмарка).
   config: |
     [[runners]]
+      request_concurrency = 2
       [runners.kubernetes]
         namespace = "{{ .Release.Namespace }}"
         image = "alpine:3.20"
