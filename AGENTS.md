@@ -12,6 +12,7 @@ Operational notes for working with this repo's infrastructure (Yandex Cloud + Ma
 - Ноды **без публичных IP** (`nat = false`), исходящий трафик через NAT-шлюз + route table.
 - VictoriaMetrics k8s-stack (vmks) всегда устанавливается в namespace **`vmks`**, с отключёнными scrape-job и recording-правилами для control-plane (Yandex Managed K8s master вне кластера): см. `values/vmks-values.yaml.tftpl`.
 - Провайдер helm/kubernetes подключается к кластеру через `yc k8s create-token`.
+- После `terraform apply` обновить переменную GitLab CI `YCR_REGISTRY_ID`: взять новое значение из `terraform output -raw registry_id` и прописать его в группе `gitlab.com/buildkit-vs-kaniko-benchmark` → **Settings → CI/CD → Variables** (`YCR_REGISTRY_ID`).
 
 ## Провайдер yandex (credentials)
 
