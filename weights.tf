@@ -6,7 +6,8 @@
 # кластера (без публичных IP, через NAT) могли скачать файл по прямой ссылке.
 # Сам файл заливается ОДИН РАЗ вручную — см. TODO.md.
 resource "yandex_storage_bucket" "ml_weights" {
-  bucket = "kaniko-vs-buildkit-weights"
+  bucket    = "kaniko-vs-buildkit-weights"
+  folder_id = var.folder_id
 }
 
 # Публичный доступ на чтение объектов в бакете с весами.
