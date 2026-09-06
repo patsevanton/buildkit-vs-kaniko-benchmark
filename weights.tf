@@ -20,7 +20,7 @@ resource "yandex_storage_bucket_policy" "ml_weights_public" {
         Effect    = "Allow"
         Principal = "*"
         Action    = "s3:GetObject"
-        Resource  = "${yandex_storage_bucket.ml_weights.bucket}/*"
+        Resource  = "arn:aws:s3:::${yandex_storage_bucket.ml_weights.bucket}/*"
       }
     ]
   })
