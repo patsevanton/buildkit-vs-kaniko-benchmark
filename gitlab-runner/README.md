@@ -25,16 +25,25 @@ VictoriaMetrics и отображаются в Grafana.
 2. **Build → Runners → New group runner** (или Settings → CI/CD → Runners);
 3. Скопируйте токен (`glrt-…`).
 
-Токен в репозиторий **не коммитится** — он передаётся скрипту аргументом.
+Токен в репозиторий **не коммитится** — он передаётся команде через
+`--set-string "runnerToken=<runner-token>"`.
 
 ## Установка
 
 ```bash
-./gitlab-runner/install-gitlab-runner.sh <runner-token>
+helm repo add gitlab-runner https://charts.gitlab.io/
+helm repo update
+helm upgrade --install gitlab-runner gitlab-runner/gitlab-runner \
+  --version 0.92.1 \
+  --namespace gitlab-runner \
+  --create-namespace \
+  --values gitlab-runner/values.yaml \
+  --set-string "runnerToken=<runner-token>" \
+  --timeout 10m
 ```
 
-Скрипт выполняет `helm upgrade --install gitlab-runner gitlab-runner/gitlab-runner`
-в namespace `gitlab-runner`, поэтому идемпотентен — безопасен при повторном
+Команда выполняет `helm upgrade --install gitlab-runner gitlab-runner/gitlab-runner`
+в namespace `gitlab-runner`, поэтому идемпотентна — безопасна при повторном
 запуске.
 
 Проверка:
@@ -72,6 +81,5 @@ Build-контейнер работает от root (как kaniko, так и bu
   роли `container-registry.images.pusher/puller` (см. `registry.tf`).
 - Имена подов джобов не важны для Grafana: инструменты различаются по label
   `image` метрик cAdvisor (`…/moby/buildkit…` vs `…/kaniko-project/executor…`).
-- Если требуется сменить версию чарта/образа — поменяйте `CHART_VERSION` в
-  `install-gitlab-runner.sh` (актуальная версия в
-  https://charts.gitlab.io/index.yaml).
+- Если требуется сменить версию чарта/образа — поменяйте `--version` в команде
+  установки (актуальная версия в https://charts.gitlab.io/index.yaml).

@@ -1,7 +1,9 @@
 # Values для GitLab Runner (executor: kubernetes) на Managed Yandex K8s.
 #
-# Установка выполняется скриптом install-gitlab-runner.sh:
-#   ./gitlab-runner/install-gitlab-runner.sh <runner-token>
+# Установка выполняется командой helm (см. README.md, раздел 1b):
+#   helm upgrade --install gitlab-runner gitlab-runner/gitlab-runner \
+#     --values gitlab-runner/values.yaml \
+#     --set-string "runnerToken=<runner-token>"
 #
 # Раннер подключается к gitlab.com и запускает CI-джобы в namespace gitlab-runner
 # того же кластера, где поднят стенд (ноды без публичных IP, исходящий трафик
@@ -61,4 +63,4 @@ resources:
     memory: 512Mi
 
 # Пустой значения: секреты в репозиторий не коммитятся, токен передаётся
-# скриптом через --set-string (см. install-gitlab-runner.sh).
+# командой helm через --set-string "runnerToken=<runner-token>".

@@ -84,9 +84,9 @@ Terraform поднимает:
 - Managed K8s master 1.33 (regional, 3 зоны), node group из 6 preemptible нод `standard-v3` 8 vCPU / 16 ГБ (по 2 ноды на зону);
 - Traefik (ingress) для доступа к Grafana через `sslip.io`;
 - **Yandex Container Registry** + IAM-привязку для сервисного аккаунта кластера (`container-registry.images.pusher` / `container-registry.images.puller`);
-- VictoriaMetrics k8s-stack в namespace **`vmks`** (с отключёнными scrape и правилами для control-plane — как того требует AGENTS.md для Managed Yandex K8s). Устанавливается **отдельным шагом** через скрипт `install-vmks.sh` после `terraform apply` — terraform только рендерит `values/vmks-values.yaml`.
+- VictoriaMetrics k8s-stack в namespace **`vmks`** (с отключёнными scrape и правилами для control-plane — как того требует AGENTS.md для Managed Yandex K8s). Устанавливается **отдельным шагом** через `helm` после `terraform apply` — terraform только рендерит `values/vmks-values.yaml`.
 
-**GitLab Runner** устанавливается отдельно скриптом `gitlab-runner/install-gitlab-runner.sh` (helm-чарт, executor kubernetes) — terraform его не ставит.
+**GitLab Runner** устанавливается отдельно командой `helm` (helm-чарт, executor kubernetes) — terraform его не ставит.
 
 ## Сравниваемые варианты
 
@@ -120,22 +120,39 @@ terraform apply -auto-approve
 ### 1a. Установка мониторинга (vmks)
 
 ```bash
-./install-vmks.sh
+helm repo add victoriametrics https://victoriametrics.github.io/helm-charts/
+helm repo update
+helm upgrade --install vmks victoriametrics/victoria-metrics-k8s-stack \
+  --version 0.91.2 \
+  --namespace vmks \
+  --create-namespace \
+  --values values/vmks-values.yaml \
+  --timeout 15m
 ```
 
-Скрипт проверяет доступность кластера, наличие отрендеренного `values/vmks-values.yaml` (создаётся при `terraform apply`) и выполняет `helm upgrade --install` в namespace `vmks`. Идемпотентен — повторный запуск безопасен.
+Перед установкой убедитесь, что кластер доступен (`kubectl get nodes`) и
+отрендерен `values/vmks-values.yaml` (создаётся при `terraform apply`).
+`helm upgrade --install` идемпотентен — повторный запуск безопасен.
 
 ### 1b. Установка GitLab Runner
 
 ```bash
-./gitlab-runner/install-gitlab-runner.sh <runner-token>
+helm repo add gitlab-runner https://charts.gitlab.io/
+helm repo update
+helm upgrade --install gitlab-runner gitlab-runner/gitlab-runner \
+  --version 0.92.1 \
+  --namespace gitlab-runner \
+  --create-namespace \
+  --values gitlab-runner/values.yaml \
+  --set-string "runnerToken=<runner-token>" \
+  --timeout 10m
 ```
 
-`runner-token` — токен раннера: взять в группе
+`<runner-token>` — токен раннера: взять в группе
 `gitlab.com/buildkit-vs-kaniko-benchmark` → **Build → Runners → New group runner**
 (или Settings → CI/CD → Runners). Токен в репозиторий не коммитится.
 
-Скрипт ставит helm-чарт `gitlab-runner` (executor kubernetes) в namespace
+Команда ставит helm-чарт `gitlab-runner` (executor kubernetes) в namespace
 `gitlab-runner`. Конфигурация — в `gitlab-runner/values.yaml`. Подробнее —
 `gitlab-runner/README.md`.
 
@@ -285,11 +302,9 @@ Kaniko — «заниженный порог входа» для безопас�
 | `k8s.tf` | Managed K8s (master 1.33, региональный), node group 6×8 vCPU/16 ГБ, Traefik |
 | `registry.tf` | Yandex Container Registry + IAM-привязка для SA кластера, outputs `registry_id`/`registry_server` |
 | `weights.tf` | S3-бакет `kaniko-vs-buildkit-weights` (public-read) для весов ML-проекта, вывод `ml_weights_url` |
-| `monitoring.tf`, `values/vmks-values.yaml.tftpl` | Рендер values для VictoriaMetrics k8s-stack в namespace `vmks` (с отключёнными scrape control-plane); установка — через `install-vmks.sh` |
-| `install-vmks.sh` | Установка vmks после `terraform apply` (`helm upgrade --install`, идемпотентно) |
+| `monitoring.tf`, `values/vmks-values.yaml.tftpl` | Рендер values для VictoriaMetrics k8s-stack в namespace `vmks` (с отключёнными scrape control-plane); установка — через `helm` (см. раздел 1a) |
 | `gitlab-runner/values.yaml` | Values helm-чарта GitLab Runner (executor kubernetes, лимиты build-контейнера) |
-| `gitlab-runner/install-gitlab-runner.sh` | Установка GitLab Runner после `terraform apply` (токен — аргументом) |
-| `gitlab-runner/README.md` | Инструкция по установке и настройке GitLab Runner |
+| `gitlab-runner/README.md` | Инструкция по установке и настройке GitLab Runner (командой `helm`, токен — через `--set-string`) |
 | `dashboards/kaniko-vs-buildkit-gitlab-runner.json` | Дашборд Grafana: 2 графика (BuildKit и Kaniko) |
 | `dashboards/README.md` | Как импортировать дашборд |
 | `TODO.md` | Как залить веса ML-модели (~1.3 ГБ) в S3-бакет |
