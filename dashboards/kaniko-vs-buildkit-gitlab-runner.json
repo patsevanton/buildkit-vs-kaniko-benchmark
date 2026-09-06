@@ -38,29 +38,21 @@
           },
           "unit": "suffix:c"
         },
-        "overrides": [
-          {
-            "matcher": { "id": "byRegexp", "options": "memory.*" },
-            "properties": [
-              { "id": "custom.axisPlacement", "value": "right" },
-              { "id": "unit", "value": "bytes" }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "targets": [
         {
           "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}[1m])) by (pod)",
-          "legendFormat": "cpu {{pod}}",
+          "legendFormat": "buildkit {{pod}}",
           "refId": "A"
         },
         {
-          "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}) by (pod)",
-          "legendFormat": "memory {{pod}}",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}[1m])) by (pod)",
+          "legendFormat": "kaniko {{pod}}",
           "refId": "B"
         }
       ],
-      "title": "BuildKit",
+      "title": "CPU",
       "type": "timeseries"
     },
     {
@@ -72,7 +64,7 @@
           "custom": {
             "axisCenteredZero": false,
             "axisColorMode": "text",
-            "axisLabel": "cores",
+            "axisLabel": "",
             "axisPlacement": "auto",
             "drawStyle": "line",
             "fillOpacity": 10,
@@ -83,31 +75,23 @@
             "spanNulls": false,
             "stacking": { "group": "A", "mode": "none" }
           },
-          "unit": "suffix:c"
+          "unit": "bytes"
         },
-        "overrides": [
-          {
-            "matcher": { "id": "byRegexp", "options": "memory.*" },
-            "properties": [
-              { "id": "custom.axisPlacement", "value": "right" },
-              { "id": "unit", "value": "bytes" }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "targets": [
         {
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}[1m])) by (pod)",
-          "legendFormat": "cpu {{pod}}",
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}) by (pod)",
+          "legendFormat": "buildkit {{pod}}",
           "refId": "A"
         },
         {
           "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}) by (pod)",
-          "legendFormat": "memory {{pod}}",
+          "legendFormat": "kaniko {{pod}}",
           "refId": "B"
         }
       ],
-      "title": "Kaniko",
+      "title": "Memory",
       "type": "timeseries"
     }
   ],
