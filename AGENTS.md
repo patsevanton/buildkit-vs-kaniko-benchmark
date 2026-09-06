@@ -14,6 +14,15 @@ Operational notes for working with this repo's infrastructure (Yandex Cloud + Ma
 - Провайдер helm/kubernetes подключается к кластеру через `yc k8s create-token`.
 - После `terraform apply` обновить переменную GitLab CI `YCR_REGISTRY_ID`: взять новое значение из `terraform output -raw registry_id` и прописать его в группе `gitlab.com/buildkit-vs-kaniko-benchmark` → **Settings → CI/CD → Variables** (`YCR_REGISTRY_ID`).
 
+## Токены в `terraform.tfvars`
+
+В `terraform.tfvars` хранятся два токена, которые **не используются Terraform'ом** — они нужны только для ручных операций вне terraform-стека:
+
+- `gitlab_api_token` — GitLab Personal Access Token (префикс `glpat-`) для мониторинга job'ов через `glab` (GitLab CLI, `GITLAB_TOKEN`).
+- `gitlab_runner_token` — GitLab Runner Registration Token (префикс `glrt-`) для установки GitLab Runner'а.
+
+Обе переменные объявлены в `variables.tf` только ради валидности `terraform.tfvars`; в ресурсах (`*.tf`) они не используются. Сам `terraform.tfvars` в `.gitignore` (`*.tfvars`) и в репозиторий не коммитится.
+
 ## Провайдер yandex (credentials)
 
 `provider "yandex"` не содержит явного `token`/`service_account_key_file` — аутентификация через переменные окружения или профиль `yc` для Terraform (см. документацию Yandex Cloud). Для `terraform apply` требуется авторизованный `yc` или соответствующие env-переменные провайдера.
