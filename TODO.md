@@ -1,5 +1,17 @@
 # TODO: заливка весов ML-модели в S3-бакет
 
+## TODO: Android SDK в базовом образе
+
+Для проекта `android` перейти на базовый образ, в котором **уже установлен Android SDK**
+(вместо установки SDK «на лету» в build-стадии: `sdkmanager` + `platforms;android-34` +
+`build-tools;34.0.0`). Это уберёт многоминутное скачивание SDK на каждом холодном прогоне
+(особенно заметно у rootless BuildKit). Варианты:
+- `mobiledevops/android-sdk-image` (community);
+- свой образ на базе `gradle:8.11.1-jdk17` с предустановленным SDK (`platforms;android-34`,
+  `build-tools;34.0.0`) и запушенный в Yandex Container Registry.
+
+
+
 Бакет `kaniko-vs-buildkit-weights` создаётся **Terraform'ом** (`weights.tf`, public-read). Файл весов заливается **один раз вручную** — генерировать 1.3 ГБ на каждый `terraform apply` нельзя.
 
 ## Какой файл
