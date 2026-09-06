@@ -1,5 +1,10 @@
 # TODO
 
+## TODO: отказаться от `$CI_PROJECT_NAME-buildkit-cache`
+
+Отправлять кеш в `$CI_PROJECT_NAME-buildkit`, так как для `$CI_PROJECT_NAME-buildkit-cache`
+нужно делать отдельную политику очистки.
+
 ## TODO: исследование — ускорит ли registry-кэш (NORA/Harbor/Artifactory/Nexus) pull образов
 
 **Не реализовывать до завершения исследования и явного решения.**
