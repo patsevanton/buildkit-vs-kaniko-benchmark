@@ -22,3 +22,13 @@ resource "yandex_container_registry_iam_binding" "registry_sa_puller" {
     "serviceAccount:${yandex_iam_service_account.sa_k8s_editor.id}",
   ]
 }
+
+output "registry_id" {
+  description = "ID Yandex Container Registry (для переменной YCR_REGISTRY_ID в GitLab CI)"
+  value       = yandex_container_registry.registry.id
+}
+
+output "registry_server" {
+  description = "Полный адрес Yandex Container Registry для пуша образов"
+  value       = local.registry_server
+}

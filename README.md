@@ -11,12 +11,21 @@
 
 Этот репозиторий — **воспроизводимый бенчмарк** на Managed Yandex K8s: **7 проектов** разных языков и фреймворков собираются обоими инструментами в одних и тех же условиях, с замером времени, потребления CPU/RAM и поведения кэша. В конце — **итоговая сводная таблица** и разбор **преимуществ и недостатков** каждого подхода для продакшна.
 
+## Концепция
+
+В отличие от старого варианта (Kubernetes Job вручную), теперь сборка запускается **GitLab CI**:
+
+- **7 проектов** — отдельные репозитории группы [gitlab.com/buildkit-vs-kaniko-benchmark](https://gitlab.com/buildkit-vs-kaniko-benchmark). В корне каждого лежат Dockerfile и исходники (контекст сборки).
+- Каждый репозиторий содержит `.gitlab-ci.yml` с **двумя параллельными job'ами** — `kaniko-build` и `buildkit-build`.
+- Сборки выполняет **GitLab Runner (executor kubernetes)**, развёрнутый в этом же кластере (helm-чарт, каталог `gitlab-runner/`).
+- Результаты собираются в **Grafana**: дашборд с двумя графиками — **BuildKit** и **Kaniko** (CPU/RAM build-контейнера за время сборки).
+
 ## Что измеряем
 
 | Категория | Как измеряем |
 |---|---|
-| **Время сборки** (без кэша / с кэшем) | `time-build.sh` замеряет `date +%s` до/после команды сборки внутри Job, пишет в `/artifacts/times.txt` |
-| **Потребление CPU/RAM** | node-exporter + cAdvisor → VictoriaMetrics → дашборд Grafana «Kaniko vs BuildKit» (с фильтром по проекту) |
+| **Время сборки** | длительность job'а `kaniko-build` / `buildkit-build` в GitLab (страница пайплайна или API) |
+| **Потребление CPU/RAM** | cAdvisor → VictoriaMetrics → дашборд Grafana «Kaniko vs BuildKit — GitLab Runner» |
 | **Кэширование слоёв** | повторный запуск того же Dockerfile с включённым кэшем: kaniko `--cache` (registry-кэш) и BuildKit `--import-cache`/`--export-cache type=registry` (тоже registry-кэш) |
 | **Особенности Managed Yandex K8s** | auth в Registry через IAM-токен из метаданных ноды, отсутствие потребности в privileged-контейнерах, daemonless-сборка без docker.sock |
 | **Поддержка Dockerfile-синтаксиса** | одинаковые Dockerfile (apt, multi-stage, COPY --from) — сравнение совместимости |
@@ -25,43 +34,47 @@
 
 Бенчмарк собирает **7 проектов** — по одному на характерный «профиль сборки»:
 
-| № | Проект | Язык/Framework | Профиль сборки | Контекст |
+| № | Проект | Язык/Framework | Профиль сборки | Репозиторий |
 |---|---|---|---|---|
-| 1 | **Flask + Gunicorn** | Python | `pip install` multi-stage | `benchmark/projects/flask` |
-| 2 | **NestJS** | Node/TS | тяжёлый `npm ci` + декораторы, tsc | `benchmark/projects/nestjs` |
-| 3 | **Next.js** | Node/React SSR | `npm ci` + сборка клиента | `benchmark/projects/nextjs` |
-| 4 | **Nuxt 3** | Node/Vue SSR | `npm ci` + сборка клиента | `benchmark/projects/nuxt` |
-| 5 | **Go HTTP-сервис** | Go | `go build` → статический бинарник (из scratch) | `benchmark/projects/go` |
-| 6 | **Android APK** | Java/Kotlin, Gradle | `assembleRelease`, тяжёлый Gradle/SDK | `benchmark/projects/android` |
-| 7 | **ML: PyTorch inference** | Python | `pip install torch` + скачивание ~1.3 ГБ весов в BUILD-стадии (public S3-бакет) | `benchmark/projects/ml-pytorch` |
+| 1 | **Flask + Gunicorn** | Python | `pip install` multi-stage | [`flask`](https://gitlab.com/buildkit-vs-kaniko-benchmark/flask) |
+| 2 | **NestJS** | Node/TS | тяжёлый `npm ci` + декораторы, tsc | [`nestjs`](https://gitlab.com/buildkit-vs-kaniko-benchmark/nestjs) |
+| 3 | **Next.js** | Node/React SSR | `npm ci` + сборка клиента | [`nextjs`](https://gitlab.com/buildkit-vs-kaniko-benchmark/nextjs) |
+| 4 | **Nuxt 3** | Node/Vue SSR | `npm ci` + сборка клиента | [`nuxtjs`](https://gitlab.com/buildkit-vs-kaniko-benchmark/nuxtjs) |
+| 5 | **Go HTTP-сервис** | Go | `go build` → статический бинарник (из scratch) | [`golang`](https://gitlab.com/buildkit-vs-kaniko-benchmark/golang) |
+| 6 | **Android APK** | Java/Kotlin, Gradle | `assembleRelease`, тяжёлый Gradle/SDK | [`android`](https://gitlab.com/buildkit-vs-kaniko-benchmark/android) |
+| 7 | **ML: PyTorch inference** | Python | `pip install torch` + скачивание ~1.3 ГБ весов в BUILD-стадии (public S3-бакет) | [`ml-pytorch`](https://gitlab.com/buildkit-vs-kaniko-benchmark/ml-pytorch) |
 
 ## Архитектура стенда
 
 ```mermaid
 flowchart LR
+    subgraph GL["gitlab.com/buildkit-vs-kaniko-benchmark"]
+        P1["7 репозиториев<br/>(Dockerfile + исходники + .gitlab-ci.yml)"]
+    end
+
     subgraph K8s["Managed Yandex K8s (1.33)"]
-        F1["Job kaniko: <project>-kaniko-build × 7"]
-        F2["Job buildkit: <project>-buildkit-build × 7"]
-        subgraph NS["namespace kaniko-benchmark"]
-            F1
-            F2
-        end
+        R["GitLab Runner (executor kubernetes)<br/>namespace gitlab-runner"]
+        K["Pod kaniko-build"]
+        B["Pod buildkit-build"]
+        R -->|"создаёт поды джобов"| K
+        R -->|"создаёт поды джобов"| B
     end
 
     subgraph YCR["Yandex Container Registry"]
-        R["registry.yandex.cloud/&lt;id&gt;<br/>&lt;project&gt;-kaniko / &lt;project&gt;-buildkit<br/>+ &lt;project&gt;-*-cache"]
+        REG["registry.yandex.cloud/&lt;id&gt;<br/>&lt;project&gt;-kaniko / &lt;project&gt;-buildkit<br/>+ &lt;project&gt;-*-cache"]
     end
 
     MET["IAM-токен из метаданных ноды<br/>169.254.169.254 (сервисный аккаунт)"]
     VM["VictoriaMetrics (vmks)"]
     G["Grafana"]
 
-    F1 -->|"push"| R
-    F2 -->|"push"| R
-    MET -.->|"auth"| F1
-    MET -.->|"auth"| F2
-    F1 -->|"node metrics"| VM
-    F2 -->|"node metrics"| VM
+    GL -->|"job'ы в GitLab"| R
+    K -->|"push"| REG
+    B -->|"push"| REG
+    MET -.->|"auth"| K
+    MET -.->|"auth"| B
+    K -.->|"node metrics (cAdvisor)"| VM
+    B -.->|"node metrics (cAdvisor)"| VM
     VM --> G
 ```
 
@@ -73,12 +86,14 @@ Terraform поднимает:
 - **Yandex Container Registry** + IAM-привязку для сервисного аккаунта кластера (`container-registry.images.pusher` / `container-registry.images.puller`);
 - VictoriaMetrics k8s-stack в namespace **`vmks`** (с отключёнными scrape и правилами для control-plane — как того требует AGENTS.md для Managed Yandex K8s). Устанавливается **отдельным шагом** через скрипт `install-vmks.sh` после `terraform apply` — terraform только рендерит `values/vmks-values.yaml`.
 
+**GitLab Runner** устанавливается отдельно скриптом `gitlab-runner/install-gitlab-runner.sh` (helm-чарт, executor kubernetes) — terraform его не ставит.
+
 ## Сравниваемые варианты
 
 | Вариант | Образ | Запуск | Auth в registry |
 |---|---|---|---|
-| **Kaniko** | `gcr.io/kaniko-project/executor:v1.23.2-debug` | Job, обычный контейнер без privileged (root, но внутри) | IAM-токен из метаданных ноды → `config.json` в `/kaniko/.docker` |
-| **BuildKit** | `moby/buildkit:v0.32.2` | Job, **daemonless** (`buildctl-daemonless.sh`), демон `buildkitd` от root | IAM-токен из метаданных ноды → `/root/.docker/config.json` |
+| **Kaniko** | `gcr.io/kaniko-project/executor:v1.23.2-debug` | Job GitLab CI (под раннера, обычный контейнер без privileged, root внутри) | IAM-токен из метаданных ноды → `config.json` в `/kaniko/.docker` |
+| **BuildKit** | `moby/buildkit:v0.32.2` | Job GitLab CI, **daemonless** (`buildctl-daemonless.sh`), демон `buildkitd` от root | IAM-токен из метаданных ноды → `config.json` в `/root/.docker` |
 
 Оба пушат в один и тот же Yandex Container Registry (`registry.yandex.cloud/<registry-id>/`), по своему репозиторию на проект (`<project>-kaniko`, `<project>-buildkit`). Оба инструмента работают **от root** и **daemonless** — условия замеров уравнены, разница — только в самом инструменте сборки.
 
@@ -95,13 +110,12 @@ terraform apply -auto-approve
 
 - `k8s_cluster_credentials_command` — команда получения доступа к K8s;
 - `grafana_url` + `grafana_admin_password_command` — доступ к дашборду;
-- `registry_server` — адрес `registry.yandex.cloud/<id>`;
-- `ml_weights_url` — URL весов ML-модели (бакет `kaniko-vs-buildkit-weights`);
-- `apply_benchmark_command` — команда применения манифестов бенчмарка.
+- `registry_id` — id Yandex Container Registry (для переменной `YCR_REGISTRY_ID` в GitLab CI);
+- `ml_weights_url` — URL весов ML-модели (бакет `kaniko-vs-buildkit-weights`).
 
-> Для проекта `ml-pytorch` перед прогоном нужно **один раз залить веса** в созданный бакет (см. `TODO.md`). Без этого джобы ml-pytorch упадут на скачивании.
+> Для проекта `ml-pytorch` перед прогоном нужно **один раз залить веса** в созданный бакет (см. `TODO.md`). Без этого джоб ml-pytorch упадёт на скачивании.
 
-> Terraform **не устанавливает** VictoriaMetrics k8s-stack (vmks): он только рендерит `values/vmks-values.yaml`. Сама установка — отдельным шагом ниже.
+> Terraform **не устанавливает** VictoriaMetrics k8s-stack (vmks) и GitLab Runner — он только рендерит `values/vmks-values.yaml`. Установка — отдельными шагами ниже.
 
 ### 1a. Установка мониторинга (vmks)
 
@@ -111,69 +125,58 @@ terraform apply -auto-approve
 
 Скрипт проверяет доступность кластера, наличие отрендеренного `values/vmks-values.yaml` (создаётся при `terraform apply`) и выполняет `helm upgrade --install` в namespace `vmks`. Идемпотентен — повторный запуск безопасен.
 
-### 2. Доступ к кластеру
+### 1b. Установка GitLab Runner
 
 ```bash
-yc managed-kubernetes cluster get-credentials --id $(terraform output -raw k8s_cluster_id) --external --force
-kubectl get nodes
+./gitlab-runner/install-gitlab-runner.sh <runner-token>
 ```
 
-### 3. Применить манифесты бенчмарка
+`runner-token` — токен раннера: взять в группе
+`gitlab.com/buildkit-vs-kaniko-benchmark` → **Build → Runners → New group runner**
+(или Settings → CI/CD → Runners). Токен в репозиторий не коммитится.
 
-```bash
-kubectl apply -f benchmark/namespace.yaml \
-  -f benchmark/scripts-configmap.yaml \
-  -f benchmark/generated/
-```
+Скрипт ставит helm-чарт `gitlab-runner` (executor kubernetes) в namespace
+`gitlab-runner`. Конфигурация — в `gitlab-runner/values.yaml`. Подробнее —
+`gitlab-runner/README.md`.
 
-<details>
-<summary>Что внутри манифестов</summary>
+### 2. Настройка переменных GitLab CI
 
-- `benchmark/namespace.yaml` — namespace `kaniko-benchmark`;
-- `benchmark/scripts-configmap.yaml` — скрипты: замер времени (`time-build.sh`), получение IAM-токена, запись docker-config. Никаких секретов в манифестах нет — токен живёт 12 часов и берётся из метаданных ноды прямо во время запуска;
-- `benchmark/generated/` — **отрендеренные Terraform** манифесты:
-  - `<project>-kaniko-job.yaml` — Job Kaniko на проект;
-  - `<project>-buildkit-job.yaml` — Job BuildKit на проект (daemonless, от root);
-  - (`benchmark/generated/` в `.gitignore` — файлы регенерируются при `terraform apply`.)
+В группе `gitlab.com/buildkit-vs-kaniko-benchmark` → **Settings → CI/CD →
+Variables** задать:
 
-Контекст сборки (Dockerfile + исходники) берётся через **git clone** из публичного репозитория `github.com/patsevanton/buildkit-vs-kaniko-benchmark` (классическая схема разработки). **Каждому проекту соответствует отдельная ветка** (имя = имя проекта: `flask`, `nestjs`, …), в корне ветки лежат Dockerfile и исходники. Init-контейнер `git-clone` клонирует свою ветку прямо в `/workspace`, из которого идёт сборка. Репозиторий задаётся переменной `benchmark_git_repo`.
-</details>
+| Переменная | Значение |
+|---|---|
+| `YCR_REGISTRY_ID` | `terraform output -raw registry_id` (id registry, `cr...`) |
+
+Переменная `YCR_REGISTRY` (адрес registry) задана по умолчанию в `.gitlab-ci.yml`
+как `registry.yandex.cloud` — её можно переопределить при необходимости.
+
+Секретов хранить не нужно: auth выполняется IAM-токеном из метаданных ноды.
+
+### 3. Перенос проектов в репозитории
+
+Каждый из 7 проектов — отдельный репозиторий группы. Содержимое (Dockerfile +
+исходники + `.gitlab-ci.yml`) кладётся в корень main-ветки соответствующего
+репозитория. Имена репозиториев: `android`, `flask`, `golang`, `ml-pytorch`,
+`nestjs`, `nextjs`, `nuxtjs`.
 
 ### 4. Запуск прогона
 
-Пары `kaniko+buildkit` одного проекта запускаются **параллельно**, между проектами — **последовательно** (скрипт `benchmark/run-benchmark.sh`):
+Запустите пайплайн в любом репозитории (Push → Pipeline). Пара
+`kaniko+buildkit` выполняется параллельно. Между проектами — независимые
+пайплайны (можно запускать все 7 параллельно).
 
-```bash
-./benchmark/run-benchmark.sh            # все 7 проектов
-# или по одному:
-./benchmark/run-benchmark.sh go android
-```
-
-Скрипт для каждого проекта: удаляет старые Job, применяет пару, ждёт завершения (`kubectl wait --for=condition=complete`) и печатает `elapsed_sec` из логов.
-
-Наблюдение вручную:
-
-```bash
-kubectl -n kaniko-benchmark get jobs -w
-kubectl -n kaniko-benchmark get pods -w
-```
-
-По завершении — сводка времени в `times.txt` каждого Job:
-
-```bash
-kubectl -n kaniko-benchmark logs job/go-kaniko-build   | grep elapsed_sec
-kubectl -n kaniko-benchmark logs job/go-buildkit-build | grep elapsed_sec
-```
-
-Собрать итоговую таблицу из всех проектов:
-
-```bash
-./benchmark/parse-results.sh   # печатает и пишет results.md
-```
+Длительность сборки каждого инструмента — это длительность соответствующего
+job'а в GitLab (страница пайплайна или GitLab API).
 
 ### 5. Дашборд в Grafana
 
-Откройте дашборд **«Kaniko vs BuildKit — ресурсы во время сборки»** (`UID: kaniko-vs-buildkit`): CPU rate, memory working set и сетевой трафик каждого пода на время его сборки. Файл `dashboards/kaniko-vs-buildkit-dashboard.json` — импортируйте его в Grafana вручную (Grafana → Dashboards → Import → Upload JSON), либо применён через ConfigMap-подход автоматически (см. ниже).
+Откройте дашборд **«Kaniko vs BuildKit — GitLab Runner»**
+(`UID: kaniko-vs-buildkit-gitlab`): два графика — **BuildKit** и **Kaniko**
+(CPU rate и memory working set build-контейнера за время сборки). Файл
+`dashboards/kaniko-vs-buildkit-gitlab-runner.json` — импортируйте его в Grafana
+вручную (Grafana → Dashboards → Import → Upload JSON), либо применяется
+через ConfigMap-подход автоматически (см. `dashboards/README.md`).
 
 ## Ожидаемые результаты
 
@@ -191,38 +194,28 @@ kubectl -n kaniko-benchmark logs job/go-buildkit-build | grep elapsed_sec
 
 ## Как заполнить сводную таблицу результатов
 
-1. Выполните **первый прогон** (холодный кэш):
-   ```bash
-   ./benchmark/run-benchmark.sh   # пары kaniko+buildkit на проект, последовательно по проектам
-   ```
-   Время каждого Job — строка `<project>-<tool> elapsed_sec=N` в логах:
-   ```bash
-   kubectl -n kaniko-benchmark logs job/go-kaniko-build   | grep elapsed_sec
-   kubectl -n kaniko-benchmark logs job/go-buildkit-build | grep elapsed_sec
-   ```
-2. Выполните **второй прогон** (тёплый кэш) тем же способом — запишите вторые числа.
-3. Снимите CPU/RAM с дашборда Grafana за соответствующий интервал (фильтр по проекту).
-4. Соберите итог:
-   ```bash
-   ./benchmark/parse-results.sh   # -> results.md
-   ```
+1. Запустите пайплайн в каждом из 7 репозиториев (первый прогон — холодный кэш).
+2. Зафиксируйте длительность job'ов `kaniko-build` и `buildkit-build` (страница
+   пайплайна в GitLab или API `GET /projects/:id/pipelines/:pipeline_id/jobs`).
+3. Запустите повторный прогон (тёплый кэш) тем же способом — запишите вторые числа.
+4. Снимите CPU/RAM с дашборда Grafana за соответствующий интервал.
 5. Внесите числа в таблицу ниже и сформулируйте вывод.
 
 ### Итоговая сводная таблица (7 проектов)
 
-Заполняется после реального прогона. Пример формата (числа — как вставить):
+Заполняется после реального прогона. Пример формата:
 
 | Проект | Время kaniko (с) | Время buildkit (с) | Выигрыш BuildKit % |
 |---|---|---|---|
 | flask | _заполнить_ | _заполнить_ | _заполнить_ |
 | nestjs | _заполнить_ | _заполнить_ | _заполнить_ |
 | nextjs | _заполнить_ | _заполнить_ | _заполнить_ |
-| nuxt | _заполнить_ | _заполнить_ | _заполнить_ |
-| go | _заполнить_ | _заполнить_ | _заполнить_ |
+| nuxtjs | _заполнить_ | _заполнить_ | _заполнить_ |
+| golang | _заполнить_ | _заполнить_ | _заполнить_ |
 | android | _заполнить_ | _заполнить_ | _заполнить_ |
 | ml-pytorch | _заполнить_ | _заполнить_ | _заполнить_ |
 
-### Детализация по метрикам (пример на проекте go)
+### Детализация по метрикам (пример на проекте golang)
 
 #### Прогон 1: холодный кэш
 
@@ -290,24 +283,23 @@ Kaniko — «заниженный порог входа» для безопас�
 | `net.tf` | VPC, 3 приватные подсети, NAT-шлюз, route table |
 | `ip-dns.tf` | Публичный IP балансировщика Traefik |
 | `k8s.tf` | Managed K8s (master 1.33, региональный), node group 6×8 vCPU/16 ГБ, Traefik |
-| `registry.tf` | Yandex Container Registry + IAM-привязка для SA кластера |
+| `registry.tf` | Yandex Container Registry + IAM-привязка для SA кластера, outputs `registry_id`/`registry_server` |
 | `weights.tf` | S3-бакет `kaniko-vs-buildkit-weights` (public-read) для весов ML-проекта, вывод `ml_weights_url` |
 | `monitoring.tf`, `values/vmks-values.yaml.tftpl` | Рендер values для VictoriaMetrics k8s-stack в namespace `vmks` (с отключёнными scrape control-plane); установка — через `install-vmks.sh` |
 | `install-vmks.sh` | Установка vmks после `terraform apply` (`helm upgrade --install`, идемпотентно) |
-| `benchmark.tf` | Рендер 14 job-манифестов из `.tftpl` (registry_id, project, git_url/git_branch) |
-| `benchmark/namespace.yaml` | Namespace `kaniko-benchmark` |
-| `benchmark/scripts-configmap.yaml` | Скрипты: замер времени, IAM-токен, docker-config |
-| `benchmark/kaniko/kaniko-job.yaml.tftpl` | Job kaniko на проект (генерируется в `benchmark/generated/`) |
-| `benchmark/buildkit/buildkit-job.yaml.tftpl` | Job buildkit daemonless от root (генерируется) |
-| `benchmark/projects/<project>/` | 7 мини-проектов: flask, nestjs, nextjs, nuxt, go, android, ml-pytorch |
-| `benchmark/run-benchmark.sh` | Оркестрация: пары kaniko+buildkit параллельно, проекты последовательно |
-| `benchmark/parse-results.sh` | Сбор `elapsed_sec` из всех Job → `results.md` |
+| `gitlab-runner/values.yaml` | Values helm-чарта GitLab Runner (executor kubernetes, лимиты build-контейнера) |
+| `gitlab-runner/install-gitlab-runner.sh` | Установка GitLab Runner после `terraform apply` (токен — аргументом) |
+| `gitlab-runner/README.md` | Инструкция по установке и настройке GitLab Runner |
+| `dashboards/kaniko-vs-buildkit-gitlab-runner.json` | Дашборд Grafana: 2 графика (BuildKit и Kaniko) |
+| `dashboards/README.md` | Как импортировать дашборд |
 | `TODO.md` | Как залить веса ML-модели (~1.3 ГБ) в S3-бакет |
-| `dashboards/kaniko-vs-buildkit-dashboard.json` | Дашборд Grafana (с фильтром по проекту) |
+
+Репозитории проектов (в группе `gitlab.com/buildkit-vs-kaniko-benchmark`) содержат
+`.gitlab-ci.yml` с двумя job'ами — `kaniko-build` и `buildkit-build`.
 
 ## Требования
 
 - Yandex Cloud CLI (`yc`) с авторизацией, Terraform ≥ 1.3;
 - `folder_id` в `terraform.tfvars`;
-- `helm` v3 (для установки vmks через `install-vmks.sh`);
-- (для прогона) кластер развёрнут `terraform apply`, установлен `kubectl`.
+- `helm` v3 (для установки vmks и gitlab-runner);
+- (для прогона) кластер развёрнут `terraform apply`, установлен `kubectl`, развёрнут GitLab Runner.

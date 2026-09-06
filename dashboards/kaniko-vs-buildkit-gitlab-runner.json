@@ -1,0 +1,125 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Ресурсы во время сборки в GitLab CI",
+      "type": "row"
+    },
+    {
+      "id": 2,
+      "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "memory" },
+            "properties": [
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "unit", "value": "bytes" }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}[1m])) by (pod)",
+          "legendFormat": "cpu {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}) by (pod)",
+          "legendFormat": "memory {{pod}}",
+          "refId": "B"
+        }
+      ],
+      "title": "BuildKit",
+      "type": "timeseries"
+    },
+    {
+      "id": 3,
+      "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "memory" },
+            "properties": [
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "unit", "value": "bytes" }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}[1m])) by (pod)",
+          "legendFormat": "cpu {{pod}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}) by (pod)",
+          "legendFormat": "memory {{pod}}",
+          "refId": "B"
+        }
+      ],
+      "title": "Kaniko",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "",
+  "schemaVersion": 39,
+  "tags": ["kaniko", "buildkit", "benchmark", "gitlab-runner"],
+  "templating": {
+    "list": []
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Kaniko vs BuildKit — GitLab Runner",
+  "uid": "kaniko-vs-buildkit-gitlab",
+  "version": 1,
+  "weekStart": ""
+}

@@ -1,16 +1,28 @@
-# Dashboards бенчмарка kaniko vs buildkit
+# Dashboard бенчмарка Kaniko vs BuildKit (GitLab Runner)
 
-`kaniko-vs-buildkit-dashboard.json` — Grafana-дашборд с панелями:
+`kaniko-vs-buildkit-gitlab-runner.json` — Grafana-дашборд с двумя графиками:
 
-- CPU rate по подам (`<project>-kaniko-build` / `<project>-buildkit-build`);
-- memory working set по подам;
-- сетевой трафик пода (push/pull в registry);
+- **BuildKit** — CPU rate (cores) и memory working set (bytes) build-контейнера
+  джоба `buildkit-build` за время сборки;
+- **Kaniko** — те же метрики для build-контейнера джоба `kaniko-build`.
 
-Метрики берутся из node-exporter/cAdvisor, скрейпятся vmagent стека VictoriaMetrics (namespace `vmks`). В дашборде есть переменная **`project`** (мультивыборка по `project`-лейблу подов) — панели фильтруются по выбранным проектам.
+Инструменты различаются по label `image` метрик cAdvisor
+(`…/moby/buildkit…` vs `…/kaniko-project/executor…`), а поды джобов GitLab Runner
+(executor kubernetes) создаются в namespace `gitlab-runner` с build-контейнером
+по имени `build`.
 
-Импорт: Grafana → Dashboards → Import → Upload JSON (`kaniko-vs-buildkit-dashboard.json`).
-Datasource — `VictoriaMetrics` (UID `VictoriaMetrics`).
+Метрики скрейпятся vmagent'ом стека VictoriaMetrics (namespace `vmks`) с kubelet
+(cAdvisor) и пишутся в VictoriaMetrics.
 
-Альтернативно ConfigMap-подход: положить JSON как `dashboards/kaniko-vs-buildkit.json` в ConfigMap с лейблом `grafana_dashboard: "1"` в namespace `vmks` — sidecar `grafana-sc-dashboard` чарта vmks подхватит его автоматически.
+Импорт: Grafana → Dashboards → Import → Upload JSON
+(`kaniko-vs-buildkit-gitlab-runner.json`). Datasource — `VictoriaMetrics`
+(UID `VictoriaMetrics`).
 
-Время сборки дублируется в `times.txt` каждого Job (из `time-build.sh`) и сводится в итоговую таблицу README через `benchmark/parse-results.sh`.
+Альтернативно ConfigMap-подход: положить JSON как
+`dashboards/kaniko-vs-buildkit-gitlab-runner.json` в ConfigMap с лейблом
+`grafana_dashboard: "1"` в namespace `vmks` — sidecar `grafana-sc-dashboard`
+чарта vmks подхватит его автоматически.
+
+Длительность сборки каждого инструмента = длительность соответствующего job
+в GitLab (на странице пайплайна или в API). Итоговую сводку по всем проектам
+удобно собирать из длительностей джобов.

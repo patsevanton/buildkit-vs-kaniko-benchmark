@@ -20,16 +20,15 @@ Operational notes for working with this repo's infrastructure (Yandex Cloud + Ma
 ## Registry и аутентификация push из джобов
 
 - Yandex Container Registry создаётся в `registry.tf`; сервисному аккаунту кластера выданы роли `container-registry.images.pusher` и `container-registry.images.puller`.
-- В джобах бенчмарка (kaniko/buildkit) auth выполняется **короткоживущим IAM-токеном из метаданных ноды** (`http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token`, формат Google Compute Engine), username — `iam`. Токен живёт ~12 часов и не хранится в репозитории. Для работы этого механизма ноды должны иметь сервисный аккаунт с ролью на registry (выдана выше).
-- Docker config пишет init-контейнер `alpine:3.20` через скрипты из `benchmark/scripts-configmap.yaml`.
+- В CI-джобах (kaniko/buildkit, см. `.gitlab-ci.yml` в каждом из 7 репозиториев группы `gitlab.com/buildkit-vs-kaniko-benchmark`) auth выполняется **короткоживущим IAM-токеном из метаданных ноды** (`http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token`, формат Google Compute Engine), username — `iam`. Токен живёт ~12 часов и не хранится в репозитории. Для работы этого механизма ноды (и поды раннера на них) должны иметь сервисный аккаунт с ролью на registry (выдана выше).
+- Docker config формируется в `before_script` каждого job'а прямо в build-контейнере (без init-контейнеров).
 
 ## Известные нюансы
 
 - **BuildKit в этом бенчмарке работает от root** (`moby/buildkit:v0.32.2`, обычный образ) в daemonless-режиме — rootless-настройки не нужны. Если вернётесь к rootless-режиму, он требует unprivileged user namespaces на нодах (при падении с `/proc/sys/user/max_user_namespaces` — DaemonSet-воркараунд из `examples/kubernetes/sysctl-userns.privileged.yaml` в moby/buildkit).
-- Job-манифесты `benchmark/generated/*` **генерируются Terraform** из `.tftpl` (подставляются реальный `registry_id`, проект и `benchmark_git_repo`). Каталог в `.gitignore` — не коммитить сгенерированные файлы.
-- Контекст сборки передаётся **git clone** в init-контейнере `git-clone`: каждый проект собирается из **отдельной ветки** репозитория `benchmark_git_repo` (имя ветки = имя проекта, Dockerfile + исходники в корне ветки). По умолчанию репозиторий `patsevanton/buildkit-vs-kaniko-benchmark`.
-- Очередь бенчмарка: пара `kaniko+buildkit` одного проекта параллельно, между проектами — последовательно (`benchmark/run-benchmark.sh`).
-- После `terraform apply`, если вы меняете registry/кластер — перепримените джобы заново (`kubectl apply -f benchmark/generated/`), т.к. сгенерированные YAML обновятся.
+- Сборка запускается **GitLab Runner'ом (executor kubernetes)**, развёрнутым в этом же кластере через helm (см. `gitlab-runner/`). Токен раннера передаётся скрипту аргументом и в репозиторий не коммитится.
+- Контекст сборки — **сам репозиторий проекта** (Dockerfile + исходники в корне main-ветки). Каждый из 7 проектов — отдельный репозиторий группы `gitlab.com/buildkit-vs-kaniko-benchmark`.
+- Пара `kaniko+buildkit` одного проекта запускается GitLab'ом параллельно (одна стадия в `.gitlab-ci.yml`); между проектами — независимые пайплайны.
 
 ## Команды проверки
 
@@ -38,10 +37,10 @@ Operational notes for working with this repo's infrastructure (Yandex Cloud + Ma
 yc managed-kubernetes cluster get-credentials --id <cluster_id> --external --force
 kubectl get nodes
 
-# Прогресс сборок
-kubectl -n kaniko-benchmark get jobs -w
-kubectl -n kaniko-benchmark get pods -w
-# Время сборки из логов (по проекту)
-kubectl -n kaniko-benchmark logs job/<project>-kaniko-build   | grep elapsed_sec
-kubectl -n kaniko-benchmark logs job/<project>-buildkit-build | grep elapsed_sec
+# GitLab Runner
+kubectl -n gitlab-runner get pods
+kubectl -n gitlab-runner logs deploy/gitlab-runner
+
+# Прогресс джобов сборки (поды раннера)
+kubectl -n gitlab-runner get pods -w
 ```
