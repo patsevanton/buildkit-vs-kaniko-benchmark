@@ -8,22 +8,11 @@
 resource "yandex_storage_bucket" "ml_weights" {
   bucket    = "kaniko-vs-buildkit-weights"
   folder_id = var.folder_id
-}
 
-# Публичный доступ на чтение объектов в бакете с весами.
-resource "yandex_storage_bucket_policy" "ml_weights_public" {
-  bucket = yandex_storage_bucket.ml_weights.bucket
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "s3:GetObject"
-        Resource  = "arn:aws:s3:::${yandex_storage_bucket.ml_weights.bucket}/*"
-      }
-    ]
-  })
+  anonymous_access_flags {
+    read = true
+    list = true
+  }
 }
 
 output "ml_weights_url" {
