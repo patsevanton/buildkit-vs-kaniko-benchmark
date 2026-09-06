@@ -93,6 +93,169 @@
       ],
       "title": "Memory",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "id": 4,
+      "title": "Длительность сборки (duration job)",
+      "type": "row"
+    },
+    {
+      "id": 5,
+      "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "seconds",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "time() - container_start_time_seconds{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}",
+          "legendFormat": "buildkit",
+          "refId": "A"
+        },
+        {
+          "expr": "time() - container_start_time_seconds{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}",
+          "legendFormat": "kaniko",
+          "refId": "B"
+        }
+      ],
+      "title": "Elapsed (растущее время сборки)",
+      "type": "timeseries"
+    },
+    {
+      "id": 6,
+      "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "seconds",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "max_over_time((time() - container_start_time_seconds{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"})[24h])",
+          "legendFormat": "buildkit",
+          "refId": "A"
+        },
+        {
+          "expr": "max_over_time((time() - container_start_time_seconds{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"})[24h])",
+          "legendFormat": "kaniko",
+          "refId": "B"
+        }
+      ],
+      "title": "Финальная длительность (flat)",
+      "type": "timeseries"
+    },
+    {
+      "id": 7,
+      "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "unit": "dateTimeAsIso"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "container_start_time_seconds{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}",
+          "legendFormat": "buildkit",
+          "refId": "A"
+        },
+        {
+          "expr": "container_start_time_seconds{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}",
+          "legendFormat": "kaniko",
+          "refId": "B"
+        }
+      ],
+      "title": "container_start_time_seconds (момент старта)",
+      "type": "timeseries"
+    },
+    {
+      "id": 8,
+      "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "none" }
+          },
+          "unit": "dateTimeAsIso"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "container_last_seen{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}",
+          "legendFormat": "buildkit",
+          "refId": "A"
+        },
+        {
+          "expr": "container_last_seen{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}",
+          "legendFormat": "kaniko",
+          "refId": "B"
+        }
+      ],
+      "title": "container_last_seen (момент завершения)",
+      "type": "timeseries"
     }
   ],
   "refresh": "",
