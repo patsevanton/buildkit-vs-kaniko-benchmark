@@ -43,12 +43,12 @@
       "targets": [
         {
           "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}[1m])) by (pod)",
-          "legendFormat": "buildkit {{pod}}",
+          "legendFormat": "buildkit",
           "refId": "A"
         },
         {
           "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}[1m])) by (pod)",
-          "legendFormat": "kaniko {{pod}}",
+          "legendFormat": "kaniko",
           "refId": "B"
         }
       ],
@@ -82,12 +82,12 @@
       "targets": [
         {
           "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}) by (pod)",
-          "legendFormat": "buildkit {{pod}}",
+          "legendFormat": "buildkit",
           "refId": "A"
         },
         {
           "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}) by (pod)",
-          "legendFormat": "kaniko {{pod}}",
+          "legendFormat": "kaniko",
           "refId": "B"
         }
       ],
