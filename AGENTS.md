@@ -18,10 +18,22 @@ Operational notes for working with this repo's infrastructure (Yandex Cloud + Ma
 
 В `terraform.tfvars` хранятся два токена, которые **не используются Terraform'ом** — они нужны только для ручных операций вне terraform-стека:
 
-- `gitlab_api_token` — GitLab Personal Access Token (префикс `glpat-`) для мониторинга job'ов через `glab` (GitLab CLI, `GITLAB_TOKEN`).
+- `gitlab_api_token` — GitLab Personal Access Token (префикс `glpat-`) со **скоупом `api` (read + write)** для работы через `glab` (GitLab CLI, `GITLAB_TOKEN`): мониторинг job'ов **и запуск пайплайнов** (`glab ci run`). Токен имеет права на запись — им можно создавать/отменять пайплайны и job'ы.
 - `gitlab_runner_token` — GitLab Runner Registration Token (префикс `glrt-`) для установки GitLab Runner'а.
 
 Обе переменные объявлены в `variables.tf` только ради валидности `terraform.tfvars`; в ресурсах (`*.tf`) они не используются. Сам `terraform.tfvars` в `.gitignore` (`*.tfvars`) и в репозиторий не коммитится.
+
+### Правило запуска пайплайнов: только на свободном раннере
+
+Пайплайн проекта **запускается только после того, как завершатся все джобы на раннере** (пока раннер занят — не стартовать). Причина: пара `kaniko+buildkit` одного проекта должна начаться **одновременно**, иначе две линии на дашборде Grafana (buildkit и kaniko) стартуют в разное время и графики становятся несопоставимыми. Раннер сконфигурирован с `concurrent = 2` (`gitlab-runner/values.yaml`) — ровно под одну пару; при занятой паре джобы нового пайплайна попадают в очередь и разъезжаются по времени.
+
+Для этого есть `scripts/run-pipeline-when-idle.sh`: он опрашивает раннер (по тегу `k8s-benchmark` в группе), ждёт нуля занятых/ожидающих джобов и только затем делает `glab ci run`. Запускать по **одному** проекту за раз.
+
+```bash
+export GITLAB_TOKEN=$(sed -n 's/^gitlab_api_token\s*=\s*"\(.*\)"/\1/p' terraform.tfvars)
+scripts/run-pipeline-when-idle.sh flask                 # дождаться простоя и запустить
+scripts/run-pipeline-when-idle.sh android --dry-run     # только дождаться простоя раннера
+```
 
 ## Провайдер yandex (credentials)
 
