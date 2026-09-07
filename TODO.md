@@ -1,29 +1,5 @@
 # TODO
 
-## DONE: разбить роль `editor` сервисного аккаунта k8s на минимальные права
-
-Выполнено: аккаунт расщеплён на два (`k8s.tf`):
-
-- `sa_k8s_master` (`service_account_id`): `k8s.clusters.agent` + `vpc.publicAdmin` +
-  `load-balancer.admin` (набор из документации Yandex Cloud «Managed K8s — Безопасность»:
-  k8s.clusters.agent + vpc.publicAdmin для кластера с публичным доступом; load-balancer.admin —
-  для сетевого балансировщика с публичным IP, т.е. Service LoadBalancer Traefik).
-- `sa_k8s_node` (`node_service_account_id`): ролей на фолдер не имеет;
-  `container-registry.images.pusher`/`puller` выданы ему на конкретный registry в `registry.tf`
-  (IAM-токен из метаданных нод для push/pull в CI-джобах).
-- Роль `editor` на фолдер больше не назначается; ресурсы `sa_k8s_editor*` удалены.
-- `terraform validate`/`plan` проходят (plan: 22 to add — инфраструктура была уничтожена).
-
-Не проверено (инфраструктура удалена, apply не выполнялся): `terraform apply`,
-LoadBalancer Traefik, push/pull из джоб GitLab Runner — проверить после следующего развёртывания.
-
-## DONE: отказаться от `$CI_PROJECT_NAME-buildkit-cache`
-
-Выполнено: `--import-cache`/`--export-cache` BuildKit пишут в `$CI_PROJECT_NAME-buildkit`
-(тот же репозиторий, что и образ) — отдельная политика очистки для `*-buildkit-cache` не нужна.
-Изменены эталон в `README.md` и `.gitlab-ci.yml` во всех 7 репозиториях группы
-`gitlab.com/buildkit-vs-kaniko-benchmark` (коммиты в main). Kaniko-кэш (`*-kaniko-cache`) не менялся.
-
 ## TODO: исследование — ускорит ли registry-кэш (NORA/Harbor/Artifactory/Nexus) pull образов
 
 **Не реализовывать до завершения исследования и явного решения.**
