@@ -1,21 +1,57 @@
-# Сервисный аккаунт для управления Kubernetes.
-resource "yandex_iam_service_account" "sa_k8s_editor" {
-  folder_id = var.folder_id
-  name      = "sa-k8s-buildkit"
+# Сервисные аккаунты кластера Managed K8s: отдельно для мастера и для нод.
+# Права — минимальные (вместо прежней роли `editor` на весь фолдер),
+# согласно документации Yandex Cloud «Managed Service for Kubernetes. Безопасность»:
+#   https://yandex.cloud/ru/docs/managed-kubernetes/security/
+
+# Мастер (service_account_id): управление ресурсами кластера от лица мастера.
+#   - k8s.clusters.agent    — создание групп узлов, дисков, внутренних балансировщиков
+#                             (включает compute.admin, vpc.privateAdmin и др.);
+#   - vpc.publicAdmin       — требуется для кластера с публичным доступом;
+#   - load-balancer.admin   — в комбинации с k8s.clusters.agent позволяет создавать
+#                             сетевой балансировщик с публичным IP (Service LoadBalancer
+#                             Traefik через cloud-controller-manager).
+resource "yandex_iam_service_account" "sa_k8s_master" {
+  folder_id   = var.folder_id
+  name        = "sa-k8s-master"
+  description = "Master service account of the buildkit Managed K8s cluster"
 }
 
-resource "yandex_resourcemanager_folder_iam_member" "sa_k8s_editor_permissions" {
-  role      = "editor"
+resource "yandex_resourcemanager_folder_iam_member" "sa_k8s_master_clusters_agent" {
+  role      = "k8s.clusters.agent"
   folder_id = var.folder_id
-  member    = "serviceAccount:${yandex_iam_service_account.sa_k8s_editor.id}"
+  member    = "serviceAccount:${yandex_iam_service_account.sa_k8s_master.id}"
+}
+
+resource "yandex_resourcemanager_folder_iam_member" "sa_k8s_master_vpc_public_admin" {
+  role      = "vpc.publicAdmin"
+  folder_id = var.folder_id
+  member    = "serviceAccount:${yandex_iam_service_account.sa_k8s_master.id}"
+}
+
+resource "yandex_resourcemanager_folder_iam_member" "sa_k8s_master_lb_admin" {
+  role      = "load-balancer.admin"
+  folder_id = var.folder_id
+  member    = "serviceAccount:${yandex_iam_service_account.sa_k8s_master.id}"
+}
+
+# Ноды (node_service_account_id): IAM-токен из метаданных нод используется
+# CI-джобами для push/pull в YCR — роли container-registry.images.pusher/puller
+# выданы этому аккаунту на конкретный registry в registry.tf, на фолдер не дублируются.
+resource "yandex_iam_service_account" "sa_k8s_node" {
+  folder_id   = var.folder_id
+  name        = "sa-k8s-node"
+  description = "Node service account of the buildkit Managed K8s cluster"
 }
 
 # Пауза, чтобы изменения IAM успели примениться до создания кластера.
 resource "time_sleep" "wait_sa" {
   create_duration = "20s"
   depends_on = [
-    yandex_iam_service_account.sa_k8s_editor,
-    yandex_resourcemanager_folder_iam_member.sa_k8s_editor_permissions
+    yandex_resourcemanager_folder_iam_member.sa_k8s_master_clusters_agent,
+    yandex_resourcemanager_folder_iam_member.sa_k8s_master_vpc_public_admin,
+    yandex_resourcemanager_folder_iam_member.sa_k8s_master_lb_admin,
+    yandex_container_registry_iam_binding.registry_sa,
+    yandex_container_registry_iam_binding.registry_sa_puller,
   ]
 }
 
@@ -49,8 +85,8 @@ resource "yandex_kubernetes_cluster" "buildkit" {
     public_ip = true
   }
 
-  service_account_id      = yandex_iam_service_account.sa_k8s_editor.id
-  node_service_account_id = yandex_iam_service_account.sa_k8s_editor.id
+  service_account_id      = yandex_iam_service_account.sa_k8s_master.id
+  node_service_account_id = yandex_iam_service_account.sa_k8s_node.id
 
   release_channel = "STABLE"
 

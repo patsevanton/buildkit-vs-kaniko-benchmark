@@ -1,34 +1,28 @@
 # TODO
 
-## TODO: разбить роль `editor` сервисного аккаунта k8s на минимальные права
+## DONE: разбить роль `editor` сервисного аккаунта k8s на минимальные права
 
-Ресурс: `yandex_resourcemanager_folder_iam_member.sa_k8s_editor_permissions` в `k8s.tf` — сейчас
-сервисный аккаунт `sa_k8s_editor` (используется и как `service_account_id`, и как
-`node_service_account_id` кластера) получает роль `editor` на весь фолдер. Это избыточно и опасно.
+Выполнено: аккаунт расщеплён на два (`k8s.tf`):
 
-План:
+- `sa_k8s_master` (`service_account_id`): `k8s.clusters.agent` + `vpc.publicAdmin` +
+  `load-balancer.admin` (набор из документации Yandex Cloud «Managed K8s — Безопасность»:
+  k8s.clusters.agent + vpc.publicAdmin для кластера с публичным доступом; load-balancer.admin —
+  для сетевого балансировщика с публичным IP, т.е. Service LoadBalancer Traefik).
+- `sa_k8s_node` (`node_service_account_id`): ролей на фолдер не имеет;
+  `container-registry.images.pusher`/`puller` выданы ему на конкретный registry в `registry.tf`
+  (IAM-токен из метаданных нод для push/pull в CI-джобах).
+- Роль `editor` на фолдер больше не назначается; ресурсы `sa_k8s_editor*` удалены.
+- `terraform validate`/`plan` проходят (plan: 22 to add — инфраструктура была уничтожена).
 
-- Разбить одну роль `editor` на несколько минимальных ролей (набор сверить с актуальной
-  документацией Yandex Cloud по Managed K8s «минимально необходимые роли»), кандидаты:
-  - `k8s.clusters.agent` — управление ресурсами кластера от лица мастера;
-  - `vpc.publicAdmin` — работа с сетями/подсетями;
-  - `load-balancer.admin` — нужен Traefik'у (Service типа LoadBalancer);
-  - `container-registry.images.puller` / `container-registry.images.pusher` — уже выданы в
-    `registry.tf` на конкретный registry, не дублировать на фолдер.
-- Отдельно рассмотреть расщепление аккаунта: `service_account_id` (мастер) и
-  `node_service_account_id` (ноды) — разные SA с разными наборами прав вместо одного
-  `sa_k8s_editor` на обе роли.
-- Не забыть: IAM-токен из метаданных нод (`169.254.169.254/.../token`) используется в CI-джобах
-  для push в YCR — после дробления прав проверить, что push/pull из джобов работает.
-- Проверить существующий кластер/ноды: применить изменения и убедиться, что `terraform apply`
-  проходит, кластер не пересоздаётся, Traefik создаёт LoadBalancer, GitLab Runner джобы
-  завершаются успешно.
-- Переименовать `sa_k8s_editor` / `sa_k8s_editor_permissions` (имя больше не отражает суть).
+Не проверено (инфраструктура удалена, apply не выполнялся): `terraform apply`,
+LoadBalancer Traefik, push/pull из джоб GitLab Runner — проверить после следующего развёртывания.
 
-## TODO: отказаться от `$CI_PROJECT_NAME-buildkit-cache`
+## DONE: отказаться от `$CI_PROJECT_NAME-buildkit-cache`
 
-Отправлять кеш в `$CI_PROJECT_NAME-buildkit`, так как для `$CI_PROJECT_NAME-buildkit-cache`
-нужно делать отдельную политику очистки.
+Выполнено: `--import-cache`/`--export-cache` BuildKit пишут в `$CI_PROJECT_NAME-buildkit`
+(тот же репозиторий, что и образ) — отдельная политика очистки для `*-buildkit-cache` не нужна.
+Изменены эталон в `README.md` и `.gitlab-ci.yml` во всех 7 репозиториях группы
+`gitlab.com/buildkit-vs-kaniko-benchmark` (коммиты в main). Kaniko-кэш (`*-kaniko-cache`) не менялся.
 
 ## TODO: исследование — ускорит ли registry-кэш (NORA/Harbor/Artifactory/Nexus) pull образов
 

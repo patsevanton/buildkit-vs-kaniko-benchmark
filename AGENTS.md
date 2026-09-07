@@ -41,7 +41,8 @@ scripts/run-pipeline-when-idle.sh android --dry-run     # только дожд�
 
 ## Registry и аутентификация push из джобов
 
-- Yandex Container Registry создаётся в `registry.tf`; сервисному аккаунту кластера выданы роли `container-registry.images.pusher` и `container-registry.images.puller`.
+- Yandex Container Registry создаётся в `registry.tf`; сервисному аккаунту **нод** кластера (`sa_k8s_node`) выданы роли `container-registry.images.pusher` и `container-registry.images.puller` на конкретный registry (не на фолдер).
+- Сервисные аккаунты кластера разделены (`k8s.tf`): `sa_k8s_master` (`service_account_id`) с минимальными ролями `k8s.clusters.agent` + `vpc.publicAdmin` + `load-balancer.admin` (вместо прежней `editor` на весь фолдер) и `sa_k8s_node` (`node_service_account_id`) без ролей на фолдер — только registry-роли выше.
 - В CI-джобах (kaniko/buildkit, см. `.gitlab-ci.yml` в каждом из 7 репозиториев группы `gitlab.com/buildkit-vs-kaniko-benchmark`) auth выполняется **короткоживущим IAM-токеном из метаданных ноды** (`http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token`, формат Google Compute Engine), username — `iam`. Токен живёт ~12 часов и не хранится в репозитории. Для работы этого механизма ноды (и поды раннера на них) должны иметь сервисный аккаунт с ролью на registry (выдана выше).
 - Docker config формируется в `before_script` каждого job'а прямо в build-контейнере (без init-контейнеров).
 

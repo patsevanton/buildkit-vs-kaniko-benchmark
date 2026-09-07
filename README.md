@@ -58,7 +58,7 @@ flowchart TB
     end
 
     subgraph YCR["Yandex Container Registry"]
-        REG["cr.yandex/&lt;id&gt;<br/>&lt;project&gt;-kaniko / &lt;project&gt;-buildkit<br/>+ &lt;project&gt;-*-cache"]
+        REG["cr.yandex/&lt;id&gt;<br/>&lt;project&gt;-kaniko / &lt;project&gt;-buildkit<br/>+ &lt;project&gt;-kaniko-cache"]
     end
 
     MET["IAM-токен из метаданных ноды<br/>169.254.169.254 (сервисный аккаунт)"]
@@ -129,7 +129,7 @@ Variables** задать:
 Для авторизации и пуша собранных образов в YCR не используются статические токены, пароли или секреты, сохранённые в репозитории:
 
 1. **Сервисный аккаунт нод кластера (`node_service_account`):**
-   При развёртывании инфраструктуры через Terraform сервисному аккаунту нод кластера (`sa_k8s_editor`) назначаются роли `container-registry.images.pusher` и `container-registry.images.puller` на созданный реестр (см. `registry.tf`). Поды GitLab Runner запускаются на этих нодах и имеют сетевой доступ к сервису метаданных инстанса.
+   При развёртывании инфраструктуры через Terraform сервисному аккаунту нод кластера (`sa_k8s_node`) назначаются роли `container-registry.images.pusher` и `container-registry.images.puller` на созданный реестр (см. `registry.tf`). Поды GitLab Runner запускаются на этих нодах и имеют сетевой доступ к сервису метаданных инстанса.
 2. **Получение короткоживущего IAM-токена из метаданных ноды:**
    В секции `before_script` каждого CI-джоба выполняется запрос к сервису метаданных ноды по адресу `169.254.169.254` (интерфейс метаданных Google Compute Engine):
    ```bash
@@ -204,9 +204,15 @@ buildkit-build:
         --local "context=$CI_PROJECT_DIR"
         --local "dockerfile=$CI_PROJECT_DIR"
         --output "type=image,name=$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-buildkit:latest,push=true"
-        --import-cache "type=registry,ref=$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-buildkit-cache"
-        --export-cache "type=registry,ref=$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-buildkit-cache,mode=max"
+        --import-cache "type=registry,ref=$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-buildkit"
+        --export-cache "type=registry,ref=$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-buildkit,mode=max"
 ```
+
+Кэш BuildKit пишется в тот же репозиторий, что и сам образ
+(`$CI_PROJECT_NAME-buildkit`), а не в отдельный `…-buildkit-cache`: отдельный
+репозиторий кэша требует собственной политики очистки реестра, а кэш
+`--export-cache type=registry` корректно соседствует с тегом `latest` образа в
+одном репозитории.
 
 Ослабленный securityContext для rootless BuildKit (`seccompProfile: Unconfined`,
 `appArmorProfile: Unconfined`) задаётся на уровне раннера в
