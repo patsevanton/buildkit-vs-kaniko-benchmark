@@ -69,14 +69,13 @@ resource "yandex_kubernetes_node_group" "k8s_node_group" {
 
   scale_policy {
     fixed_scale {
-      size = 6
+      size = 2
     }
   }
 
   allocation_policy {
     location { zone = local.subnet_b_zone }
     location { zone = local.subnet_d_zone }
-    location { zone = local.subnet_e_zone }
   }
 
   instance_template {
@@ -91,7 +90,6 @@ resource "yandex_kubernetes_node_group" "k8s_node_group" {
       subnet_ids = [
         local.subnet_b_id,
         local.subnet_d_id,
-        local.subnet_e_id
       ]
     }
 

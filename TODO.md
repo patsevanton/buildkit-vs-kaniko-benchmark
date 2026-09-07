@@ -1,5 +1,30 @@
 # TODO
 
+## TODO: разбить роль `editor` сервисного аккаунта k8s на минимальные права
+
+Ресурс: `yandex_resourcemanager_folder_iam_member.sa_k8s_editor_permissions` в `k8s.tf` — сейчас
+сервисный аккаунт `sa_k8s_editor` (используется и как `service_account_id`, и как
+`node_service_account_id` кластера) получает роль `editor` на весь фолдер. Это избыточно и опасно.
+
+План:
+
+- Разбить одну роль `editor` на несколько минимальных ролей (набор сверить с актуальной
+  документацией Yandex Cloud по Managed K8s «минимально необходимые роли»), кандидаты:
+  - `k8s.clusters.agent` — управление ресурсами кластера от лица мастера;
+  - `vpc.publicAdmin` — работа с сетями/подсетями;
+  - `load-balancer.admin` — нужен Traefik'у (Service типа LoadBalancer);
+  - `container-registry.images.puller` / `container-registry.images.pusher` — уже выданы в
+    `registry.tf` на конкретный registry, не дублировать на фолдер.
+- Отдельно рассмотреть расщепление аккаунта: `service_account_id` (мастер) и
+  `node_service_account_id` (ноды) — разные SA с разными наборами прав вместо одного
+  `sa_k8s_editor` на обе роли.
+- Не забыть: IAM-токен из метаданных нод (`169.254.169.254/.../token`) используется в CI-джобах
+  для push в YCR — после дробления прав проверить, что push/pull из джобов работает.
+- Проверить существующий кластер/ноды: применить изменения и убедиться, что `terraform apply`
+  проходит, кластер не пересоздаётся, Traefik создаёт LoadBalancer, GitLab Runner джобы
+  завершаются успешно.
+- Переименовать `sa_k8s_editor` / `sa_k8s_editor_permissions` (имя больше не отражает суть).
+
 ## TODO: отказаться от `$CI_PROJECT_NAME-buildkit-cache`
 
 Отправлять кеш в `$CI_PROJECT_NAME-buildkit`, так как для `$CI_PROJECT_NAME-buildkit-cache`

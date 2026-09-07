@@ -29,7 +29,7 @@ runners:
         cpu_request = "1"
         cpu_limit = "4"
         memory_request = "1Gi"
-        memory_limit = "4Gi"
+        memory_limit = "12Gi"
         helper_cpu_request = "100m"
         helper_cpu_limit = "500m"
         helper_memory_request = "128Mi"
