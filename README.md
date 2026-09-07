@@ -87,7 +87,6 @@ Yandex Container Registry + IAM-привязку для сервисного а�
 
 | Вариант | Образ | Запуск | Auth в registry |
 |---|---|---|---|
-| **ВМ с Docker** | — (отдельная виртуальная машина, не контейнер в поде) | `docker build` на ВМ (Docker daemon на ноде), джоб CI направляется через SSH / `docker context` / Docker Remote API | обычный `docker login` (или `config.json`/credentials на ВМ) |
 | **Kaniko** | `gcr.io/kaniko-project/executor:v1.23.2-debug` | Job GitLab CI (под раннера, обычный контейнер без privileged, root внутри) | IAM-токен из метаданных ноды → `config.json` в `/kaniko/.docker` |
 | **BuildKit** | `moby/buildkit:v0.32.2-rootless` | Job GitLab CI, **daemonless** (`buildctl-daemonless.sh`), демон `buildkitd` rootless (`--oci-worker-no-process-sandbox`) | IAM-токен из метаданных ноды → `config.json` в `~/.docker` |
 
