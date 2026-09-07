@@ -100,7 +100,7 @@ resource "yandex_kubernetes_node_group" "k8s_node_group" {
 
     boot_disk {
       type = "network-ssd"
-      size = 30
+      size = 100
     }
   }
 }
