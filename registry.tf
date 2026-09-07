@@ -6,7 +6,7 @@ resource "yandex_container_registry" "registry" {
 
 # Кому разрешён push/pull в registry. Бенчмарк-джобы запускаются в кластере,
 # а сервисный аккаунт кластера (sa_k8s_editor) используется как его node_service_account.
-# Право container-registrypusher/reader даёт возможности и push, и pull собранных образов.
+# Роли container-registry.images.pusher / puller дают возможности push и pull собранных образов.
 resource "yandex_container_registry_iam_binding" "registry_sa" {
   registry_id = yandex_container_registry.registry.id
   role        = "container-registry.images.pusher"

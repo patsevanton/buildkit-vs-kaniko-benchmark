@@ -1,10 +1,10 @@
 # Dashboard бенчмарка Kaniko vs BuildKit (GitLab Runner)
 
-`kaniko-vs-buildkit-gitlab-runner.json` — Grafana-дашборд с двумя графиками:
+`kaniko-vs-buildkit-gitlab-runner.json` — Grafana-дашборд с тремя панелями для прямого сравнения инструментов (**BuildKit** vs **Kaniko**):
 
-- **BuildKit** — CPU rate (cores) и memory working set (bytes) build-контейнера
-  джоба `buildkit-build` за время сборки;
-- **Kaniko** — те же метрики для build-контейнера джоба `kaniko-build`.
+- **CPU** — CPU rate (cores) build-контейнеров джобов `buildkit-build` и `kaniko-build` за время сборки;
+- **Memory** — memory working set (bytes) build-контейнеров за время сборки;
+- **Elapsed** — растущее время сборки (seconds) build-контейнеров.
 
 Инструменты различаются по label `image` метрик cAdvisor
 (`…/moby/buildkit…` vs `…/kaniko-project/executor…`), а поды джобов GitLab Runner

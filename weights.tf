@@ -4,7 +4,7 @@
 #
 # Бакет создаётся Terraform'ом и делается публичным (public-read), чтобы ноды
 # кластера (без публичных IP, через NAT) могли скачать файл по прямой ссылке.
-# Сам файл заливается ОДИН РАЗ вручную — см. TODO.md.
+# Сам файл заливается ОДИН РАЗ вручную — см. README.md, подраздел «Подготовка весов для ml-pytorch».
 resource "yandex_storage_bucket" "ml_weights" {
   bucket    = "kaniko-vs-buildkit-weights"
   folder_id = var.folder_id

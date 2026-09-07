@@ -18,7 +18,7 @@
 - **7 проектов** — отдельные репозитории группы [gitlab.com/buildkit-vs-kaniko-benchmark](https://gitlab.com/buildkit-vs-kaniko-benchmark). В корне каждого лежат Dockerfile и исходники (контекст сборки).
 - Каждый репозиторий содержит `.gitlab-ci.yml` с **двумя параллельными job'ами** — `kaniko-build` и `buildkit-build`.
 - Сборки выполняет **GitLab Runner (executor kubernetes)**, развёрнутый в этом же кластере (helm-чарт, каталог `gitlab-runner/`).
-- Результаты собираются в **Grafana**: дашборд с двумя графиками — **BuildKit** и **Kaniko** (CPU/RAM build-контейнера за время сборки).
+- Результаты собираются в **Grafana**: дашборд с тремя панелями для прямого сравнения **BuildKit** и **Kaniko** (CPU, RAM и длительность build-контейнера).
 
 ## Что измеряем
 
@@ -292,8 +292,8 @@ job'а в GitLab (страница пайплайна или GitLab API).
 ### 5. Дашборд в Grafana
 
 Откройте дашборд **«Kaniko vs BuildKit — GitLab Runner»**
-(`UID: kaniko-vs-buildkit-gitlab`): два графика — **BuildKit** и **Kaniko**
-(CPU rate и memory working set build-контейнера за время сборки). Файл
+(`UID: kaniko-vs-buildkit-gitlab`): панели для сравнения **BuildKit** и **Kaniko**
+(CPU rate, memory working set и растущее время сборки build-контейнеров). Файл
 `dashboards/kaniko-vs-buildkit-gitlab-runner.json` — импортируйте его в Grafana
 вручную (Grafana → Dashboards → Import → Upload JSON), либо применяется
 через ConfigMap-подход автоматически (см. `dashboards/README.md`).
@@ -423,9 +423,9 @@ Kaniko — «заниженный порог входа» для безопас�
 | `monitoring.tf`, `values/vmks-values.yaml.tftpl` | Рендер values для VictoriaMetrics k8s-stack в namespace `vmks` (с отключёнными scrape control-plane); установка — через `helm` (см. раздел 1a) |
 | `gitlab-runner/values.yaml` | Values helm-чарта GitLab Runner (executor kubernetes, лимиты build-контейнера) |
 | `gitlab-runner/README.md` | Инструкция по установке и настройке GitLab Runner (командой `helm`, токен — через `--set-string`) |
-| `dashboards/kaniko-vs-buildkit-gitlab-runner.json` | Дашборд Grafana: 2 графика (BuildKit и Kaniko) |
+| `dashboards/kaniko-vs-buildkit-gitlab-runner.json` | Дашборд Grafana: 3 панели (CPU, Memory, Elapsed) для сравнения BuildKit и Kaniko |
 | `dashboards/README.md` | Как импортировать дашборд |
-| `TODO.md` | Как залить веса ML-модели (~1.3 ГБ) в S3-бакет |
+| `TODO.md` | Список задач и исследовательские гипотезы по оптимизации стенда |
 
 Репозитории проектов (в группе `gitlab.com/buildkit-vs-kaniko-benchmark`) содержат
 `.gitlab-ci.yml` с двумя job'ами — `kaniko-build` и `buildkit-build`.
@@ -448,6 +448,9 @@ export YC_TOKEN=$(yc iam create-token)
 ## Требования
 
 - Yandex Cloud CLI (`yc`) с авторизацией, Terraform ≥ 1.3;
-- `folder_id` в `terraform.tfvars`;
+- Файл `terraform.tfvars` с переменными:
+  - `folder_id` — ID каталога в Yandex Cloud;
+  - `gitlab_api_token` — Personal Access Token для мониторинга job'ов (в ресурсах TF не используется);
+  - `gitlab_runner_token` — Registration Token раннера (в ресурсах TF не используется);
 - `helm` v3 (для установки vmks и gitlab-runner);
 - (для прогона) кластер развёрнут `terraform apply`, установлен `kubectl`, развёрнут GitLab Runner.
