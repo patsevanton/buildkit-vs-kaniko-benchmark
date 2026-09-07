@@ -1,9 +1,5 @@
 # TODO
 
-## TODO: описание настройки GitLab Runner для push в Yandex Container Registry
-
-Сделать раздел в документации, где будет подробно описано, как настроен GitLab Runner для выполнения push в Yandex Container Registry (IAM-токен из метаданных ноды через сервисный аккаунт, формирование docker config, права `container-registry.images.pusher/puller`).
-
 ## TODO: отказаться от `$CI_PROJECT_NAME-buildkit-cache`
 
 Отправлять кеш в `$CI_PROJECT_NAME-buildkit`, так как для `$CI_PROJECT_NAME-buildkit-cache`

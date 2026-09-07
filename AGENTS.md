@@ -68,4 +68,11 @@ kubectl -n gitlab-runner logs deploy/gitlab-runner
 
 # Прогресс джобов сборки (поды раннера)
 kubectl -n gitlab-runner get pods -w
+
+# Диагностика GitLab CI джобов через glab
+# Токен gitlab_api_token находится в terraform.tfvars (/home/user/github/patsevanton/buildkit-vs-kaniko-benchmark/terraform.tfvars)
+# Использование: export GITLAB_TOKEN=$(sed -n 's/^gitlab_api_token\s*=\s*"\(.*\)"/\1/p' terraform.tfvars)
+glab ci status -R buildkit-vs-kaniko-benchmark/<repo-name>
+glab ci trace -R buildkit-vs-kaniko-benchmark/<repo-name> <job_id>
+glab ci list -R buildkit-vs-kaniko-benchmark/<repo-name>
 ```

@@ -117,8 +117,8 @@ terraform apply -auto-approve
 Модель `google-bert/bert-large-uncased` → файл `pytorch_model.bin` (**~1.28 ГБ**):
 
 - Source (Hugging Face): `https://huggingface.co/google-bert/bert-large-uncased/resolve/main/pytorch_model.bin`
-- В бакет кладётся под ключом `model.bin`
-- URL для BUILD-стадии: `https://storage.yandexcloud.net/kaniko-vs-buildkit-weights/model.bin` (выводит `terraform output -raw ml_weights_url`)
+- В бакет кладётся под ключом `pytorch_model.bin`
+- URL для BUILD-стадии: `https://storage.yandexcloud.net/kaniko-vs-buildkit-weights/pytorch_model.bin` (выводит `terraform output -raw ml_weights_url`)
 
 #### Как залить (одним из способов)
 
@@ -129,7 +129,7 @@ terraform apply -auto-approve
 
 ```bash
 MC_HOST_s3=https://<access_key>:<secret_key>@storage.yandexcloud.net
-mc cp pytorch_model.bin s3/kaniko-vs-buildkit-weights/model.bin
+mc cp pytorch_model.bin s3/kaniko-vs-buildkit-weights/pytorch_model.bin
 ```
 
 **Вариант B — AWS CLI (S3-совместимый API):**
@@ -138,14 +138,14 @@ mc cp pytorch_model.bin s3/kaniko-vs-buildkit-weights/model.bin
 AWS_ACCESS_KEY_ID=<access_key> \
 AWS_SECRET_ACCESS_KEY=<secret_key> \
 aws --endpoint-url=https://storage.yandexcloud.net \
-  s3 cp pytorch_model.bin s3://kaniko-vs-buildkit-weights/model.bin
+  s3 cp pytorch_model.bin s3://kaniko-vs-buildkit-weights/pytorch_model.bin
 ```
 
 **Вариант C — `yc storage` + curl (без доп. клиентов):**
 
 ```bash
 # 1. Скачать модель с HF
-curl -fSL -o model.bin https://huggingface.co/google-bert/bert-large-uncased/resolve/main/pytorch_model.bin
+curl -fSL -o pytorch_model.bin https://huggingface.co/google-bert/bert-large-uncased/resolve/main/pytorch_model.bin
 # 2. Залить S3-совместимым клиентом (mc/aws) — без этих утилит Yandex CLI
 #    не умеет грузить объекты, см. варианты A/B.
 ```
@@ -153,7 +153,7 @@ curl -fSL -o model.bin https://huggingface.co/google-bert/bert-large-uncased/res
 #### Проверка
 
 ```bash
-curl -sI https://storage.yandexcloud.net/kaniko-vs-buildkit-weights/model.bin \
+curl -sI https://storage.yandexcloud.net/kaniko-vs-buildkit-weights/pytorch_model.bin \
   | grep -iE "HTTP|content-length"
 # ожидаем 200 и content-length ~1344997306
 ```
@@ -196,7 +196,35 @@ Variables** задать:
 
 Секретов хранить не нужно: auth выполняется IAM-токеном из метаданных ноды.
 
-### 3. Перенос проектов в репозитории
+### 3. Настройка GitLab Runner для push в Yandex Container Registry
+
+Для авторизации и пуша собранных образов в YCR не используются статические токены, пароли или секреты, сохранённые в репозитории:
+
+1. **Сервисный аккаунт нод кластера (`node_service_account`):**
+   При развёртывании инфраструктуры через Terraform сервисному аккаунту нод кластера (`sa_k8s_editor`) назначаются роли `container-registry.images.pusher` и `container-registry.images.puller` на созданный реестр (см. `registry.tf`). Поды GitLab Runner запускаются на этих нодах и имеют сетевой доступ к сервису метаданных инстанса.
+2. **Получение короткоживущего IAM-токена из метаданных ноды:**
+   В секции `before_script` каждого CI-джоба выполняется запрос к сервису метаданных ноды по адресу `169.254.169.254` (интерфейс метаданных Google Compute Engine):
+   ```bash
+   TOKEN=$(wget -q -O - --header="Metadata-Flavor: Google" \
+     "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token" \
+     | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+   ```
+   Токен генерируется платформой Yandex Cloud на базе привязанного к ноде сервисного аккаунта, действует ~12 часов и обновляется платформой автоматически.
+3. **Формирование конфигурации Docker (`config.json`):**
+   Для аутентификации в реестре `cr.yandex` формируется заголовок с пользователем `iam` и полученным токеном в качестве пароля:
+   ```bash
+   AUTH=$(printf "iam:%s" "$TOKEN" | base64 | tr -d '\n')
+   # Для Kaniko (/kaniko/.docker/config.json):
+   mkdir -p /kaniko/.docker
+   echo "{\"auths\":{\"$YCR_REGISTRY\":{\"auth\":\"$AUTH\"}}}" > /kaniko/.docker/config.json
+
+   # Для BuildKit (~/.docker/config.json):
+   mkdir -p ~/.docker
+   echo "{\"auths\":{\"$YCR_REGISTRY\":{\"auth\":\"$AUTH\"}}}" > ~/.docker/config.json
+   ```
+   Утилиты сборки (Kaniko и BuildKit) прозрачно считывают этот конфигурационный файл и аутентифицируются в реестре без необходимости хранить постоянные учетные данные.
+
+### 4. Перенос проектов в репозитории
 
 Каждый из 7 проектов — отдельный репозиторий группы. Содержимое (Dockerfile +
 исходники + `.gitlab-ci.yml`) кладётся в корень main-ветки соответствующего
@@ -257,7 +285,7 @@ buildkit-build:
 `gitlab-runner/values.yaml` (`build_container_security_context`) — в
 `.gitlab-ci.yml` его прописывать не нужно.
 
-### 4. Запуск прогона
+### 5. Запуск прогона
 
 Запустите пайплайн в любом репозитории (Push → Pipeline). Пара
 `kaniko+buildkit` выполняется параллельно. Между проектами — независимые
@@ -266,7 +294,7 @@ buildkit-build:
 Длительность сборки каждого инструмента — это длительность соответствующего
 job'а в GitLab (страница пайплайна или GitLab API).
 
-### 5. Дашборд в Grafana
+### 6. Дашборд в Grafana
 
 Откройте дашборд **«Kaniko vs BuildKit — GitLab Runner»**
 (`UID: kaniko-vs-buildkit-gitlab`): панели для сравнения **BuildKit** и **Kaniko**

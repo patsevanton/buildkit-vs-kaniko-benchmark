@@ -17,5 +17,5 @@ resource "yandex_storage_bucket" "ml_weights" {
 
 output "ml_weights_url" {
   description = "URL весов ML-модели для BUILD-стадии ml-pytorch"
-  value       = "https://storage.yandexcloud.net/${yandex_storage_bucket.ml_weights.bucket}/model.bin"
+  value       = "https://storage.yandexcloud.net/${yandex_storage_bucket.ml_weights.bucket}/pytorch_model.bin"
 }
