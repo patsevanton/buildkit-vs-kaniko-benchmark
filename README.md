@@ -47,7 +47,7 @@ flowchart TB
     end
 
     subgraph YCR["Yandex Container Registry"]
-        REG["cr.yandex/&lt;id&gt;<br/>&lt;project&gt;-kaniko / &lt;project&gt;-buildkit<br/>+ &lt;project&gt;-kaniko-cache"]
+        REG["cr.yandex/&lt;id&gt;<br/>&lt;project&gt;-kaniko / &lt;project&gt;-buildkit<br/>(образ + кэш в одном репозитории)"]
     end
 
     MET["IAM-токен из метаданных ноды<br/>169.254.169.254 (сервисный аккаунт)"]
@@ -174,7 +174,7 @@ kaniko-build:
         --context=dir://$CI_PROJECT_DIR
         --destination="$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-kaniko:latest"
         --cache=true
-        --cache-repo="$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-kaniko-cache"
+        --cache-repo="$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-kaniko"
 
 buildkit-build:
   stage: build
@@ -193,11 +193,12 @@ buildkit-build:
         --export-cache "type=registry,ref=$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-buildkit,mode=max"
 ```
 
-Кэш BuildKit пишется в тот же репозиторий, что и сам образ
-(`$CI_PROJECT_NAME-buildkit`), а не в отдельный `…-buildkit-cache`: отдельный
-репозиторий кэша требует собственной политики очистки реестра, а кэш
-`--export-cache type=registry` корректно соседствует с тегом `latest` образа в
-одном репозитории.
+Кэш обоих инструментов пишется в тот же репозиторий, что и сам образ
+(`$CI_PROJECT_NAME-kaniko` у Kaniko через `--cache-repo`,
+`$CI_PROJECT_NAME-buildkit` у BuildKit через `--export-cache type=registry`), а
+не в отдельные `…-kaniko-cache`/`…-buildkit-cache`: отдельный репозиторий кэша
+требует собственной политики очистки реестра, а кэш-теги корректно соседствуют с
+тегом `latest` образа в одном репозитории.
 
 Ослабленный securityContext для rootless BuildKit (`seccompProfile: Unconfined`,
 `appArmorProfile: Unconfined`) задаётся на уровне раннера в
