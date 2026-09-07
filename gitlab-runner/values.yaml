@@ -44,8 +44,10 @@ runners:
             type = "Unconfined"
           [runners.kubernetes.build_container_security_context.app_armor_profile]
             type = "Unconfined"
-        # Имена подов джобов не важны для Grafana: инструменты различаются
-        # по label `image` метрик cAdvisor (…/kaniko… vs …/buildkit…).
+        # Имена подов джобов важны для Grafana: GitLab Runner включает в них
+        # GitLab project ID (runner-…-project-<ID>-concurrent-…), по которому
+        # дашборд различает проекты, а инструменты различаются по label `image`
+        # метрик cAdvisor (…/kaniko… vs …/buildkit…).
         pull_policy = "if-not-present"
 
 resources:

@@ -1,28 +1,72 @@
-# Dashboard бенчмарка Kaniko vs BuildKit (GitLab Runner)
+# Dashboard бенчмарка Kaniko vs BuildKit
 
-`kaniko-vs-buildkit-gitlab-runner.json` — Grafana-дашборд с тремя панелями для прямого сравнения инструментов (**BuildKit** vs **Kaniko**):
+`kaniko-vs-buildkit-per-project.json` — Grafana-дашборд с тремя панелями для
+сравнения инструментов (**BuildKit** vs **Kaniko**) **по одному выбранному проекту**:
 
-- **CPU** — CPU rate (cores) build-контейнеров джобов `buildkit-build` и `kaniko-build` за время сборки;
-- **Memory** — memory working set (bytes) build-контейнеров за время сборки;
+- **CPU** — CPU rate (cores) build-контейнеров джобов `buildkit-build` и `kaniko-build`;
+- **Memory** — memory working set (bytes) build-контейнеров;
 - **Elapsed** — растущее время сборки (seconds) build-контейнеров.
 
-Инструменты различаются по label `image` метрик cAdvisor
-(`…/moby/buildkit…` vs `…/kaniko-project/executor…`), а поды джобов GitLab Runner
+## Как различаются инструмент и проект
+
+**Инструмент** — по label `image` метрик cAdvisor
+(`…/moby/buildkit…` vs `…/kaniko-project/executor…`). Поды джобов GitLab Runner
 (executor kubernetes) создаются в namespace `gitlab-runner` с build-контейнером
 по имени `build`.
+
+**Проект** — по GitLab project ID внутри имени пода джоба и по template-переменной
+`$project`. GitLab Runner формирует имена подов по шаблону:
+
+```
+runner-vy3wuq-9w-project-86139409-concurrent-0-c6pxqt2m
+                         ^^^^^^^^ GitLab project ID
+```
+
+В запросы панелей встроен фильтр `pod=~".*-project-$project-concurrent-.*"`.
+
+Переменная `$project` — custom-список «имя : ID» семи проектов группы:
+
+| Проект | ID |
+|---|---|
+| flask | 86139386 |
+| nestjs | 86139389 |
+| nextjs | 86139390 |
+| nuxtjs | 86139396 |
+| golang | 86139398 |
+| android | 86139404 |
+| ml-pytorch | 86139409 |
+
+ID нового проекта берётся из GitLab API
+(`GET /api/v4/groups/buildkit-vs-kaniko-benchmark/projects?simple=true`) и
+добавляется в `templating.list[0]` дашборда (и в поле `query`, и в `options`).
+ID стабилен для существующего проекта, но **меняется при пересоздании** проекта
+в GitLab — тогда список нужно обновить.
 
 Метрики скрейпятся vmagent'ом стека VictoriaMetrics (namespace `vmks`) с kubelet
 (cAdvisor) и пишутся в VictoriaMetrics.
 
-Импорт: Grafana → Dashboards → Import → Upload JSON
-(`kaniko-vs-buildkit-gitlab-runner.json`). Datasource — `VictoriaMetrics`
-(UID `VictoriaMetrics`).
+## Установка
 
-Альтернативно ConfigMap-подход: положить JSON как
-`dashboards/kaniko-vs-buildkit-gitlab-runner.json` в ConfigMap с лейблом
-`grafana_dashboard: "1"` в namespace `vmks` — sidecar `grafana-sc-dashboard`
-чарта vmks подхватит его автоматически.
+ConfigMap с лейблом `grafana_dashboard: "1"` в namespace `vmks` — sidecar
+`grafana-sc-dashboard` чарта vmks подхватывает его автоматически:
 
-Длительность сборки каждого инструмента = длительность соответствующего job
-в GitLab (на странице пайплайна или в API). Итоговую сводку по всем проектам
-удобно собирать из длительностей джобов.
+```bash
+kubectl -n vmks create configmap benchmark-per-project-dashboard \
+  --from-file=kaniko-vs-buildkit-per-project.json=dashboards/kaniko-vs-buildkit-per-project.json \
+  --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n vmks label configmap benchmark-per-project-dashboard grafana_dashboard=1 --overwrite
+```
+
+Альтернативно — импорт вручную: Grafana → Dashboards → Import → Upload JSON.
+Datasource — `VictoriaMetrics` (UID `VictoriaMetrics`).
+
+## Нюансы
+
+- Легенды серий — `buildkit` / `kaniko`. Если в выбранном тайм-рейндже было
+  несколько прогонов одного проекта, на панели будет несколько серий с одинаковой
+  легендой (по одной на под джоба); различать их по времени и по подсказке с
+  именем пода (`graphTooltip` = shared crosshair).
+- Дашборд показывает **ресурсы build-контейнера во время сборки**. Итоговая
+  длительность сборки каждого инструмента = длительность соответствующего job
+  в GitLab (на странице пайплайна или в API). Сводку по всем проектам удобно
+  собирать из длительностей джобов.

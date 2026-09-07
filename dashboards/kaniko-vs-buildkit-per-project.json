@@ -2,6 +2,7 @@
   "annotations": {
     "list": []
   },
+  "description": "Сравнение BuildKit и Kaniko по выбранному проекту (переменная $project — GitLab project ID в имени пода джоба).",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -42,12 +43,12 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}[1m])) by (pod)",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}[1m])) by (pod)",
           "legendFormat": "buildkit",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}[1m])) by (pod)",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}[1m])) by (pod)",
           "legendFormat": "kaniko",
           "refId": "B"
         }
@@ -81,12 +82,12 @@
       },
       "targets": [
         {
-          "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}) by (pod)",
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}) by (pod)",
           "legendFormat": "buildkit",
           "refId": "A"
         },
         {
-          "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}) by (pod)",
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}) by (pod)",
           "legendFormat": "kaniko",
           "refId": "B"
         }
@@ -127,12 +128,12 @@
       },
       "targets": [
         {
-          "expr": "time() - container_start_time_seconds{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\"}",
+          "expr": "time() - container_start_time_seconds{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}",
           "legendFormat": "buildkit",
           "refId": "A"
         },
         {
-          "expr": "time() - container_start_time_seconds{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\"}",
+          "expr": "time() - container_start_time_seconds{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}",
           "legendFormat": "kaniko",
           "refId": "B"
         }
@@ -145,11 +146,32 @@
   "schemaVersion": 39,
   "tags": ["kaniko", "buildkit", "benchmark", "gitlab-runner"],
   "templating": {
-    "list": []
+    "list": [
+      {
+        "current": { "selected": false, "text": "flask", "value": "86139386" },
+        "hide": 0,
+        "includeAll": false,
+        "label": "Проект",
+        "multi": false,
+        "name": "project",
+        "options": [
+          { "selected": true, "text": "flask", "value": "86139386" },
+          { "selected": false, "text": "nestjs", "value": "86139389" },
+          { "selected": false, "text": "nextjs", "value": "86139390" },
+          { "selected": false, "text": "nuxtjs", "value": "86139396" },
+          { "selected": false, "text": "golang", "value": "86139398" },
+          { "selected": false, "text": "android", "value": "86139404" },
+          { "selected": false, "text": "ml-pytorch", "value": "86139409" }
+        ],
+        "query": "flask : 86139386, nestjs : 86139389, nextjs : 86139390, nuxtjs : 86139396, golang : 86139398, android : 86139404, ml-pytorch : 86139409",
+        "skipUrlSync": false,
+        "type": "custom"
+      }
+    ]
   },
   "time": { "from": "now-1h", "to": "now" },
-  "title": "Kaniko vs BuildKit — GitLab Runner",
-  "uid": "kaniko-vs-buildkit-gitlab",
+  "title": "Kaniko vs BuildKit — по проектам",
+  "uid": "kaniko-vs-buildkit-project",
   "version": 1,
   "weekStart": ""
 }
