@@ -8,8 +8,8 @@ Kubernetes executor с использованием **Kaniko** и **BuildKit** �
 
 Классических ответов два — **Kaniko** и **BuildKit**:
 
-- **Kaniko** (`gcr.io/kaniko-project/executor`) — инструмент от Google для сборки без privileged-контейнера. С июня 2025 года репозиторий архивирован и проект больше не развивается.
-- **BuildKit** (`moby/buildkit`) — стандартный движок `docker build`, работающий в k8s в daemonless и rootless-режиме (`moby/buildkit:v0.32.2-rootless`) без привилегий ноды.
+- **Kaniko** ([GoogleContainerTools/kaniko](https://github.com/GoogleContainerTools/kaniko), образ `gcr.io/kaniko-project/executor`) — инструмент от Google для сборки без privileged-контейнера. С июня 2025 года репозиторий архивирован и проект больше не развивается.
+- **BuildKit** ([moby/buildkit](https://github.com/moby/buildkit)) — стандартный движок `docker build`, работающий в k8s в daemonless и rootless-режиме (`moby/buildkit:v0.32.2-rootless`) без привилегий ноды.
 
 В этой статье будет протестировано **7 проектов** разных языков и фреймворков собираются обоими инструментами в одних и тех же условиях, с замером времени, потребления CPU/RAM и поведения кэша. В конце — **итоговая сводная таблица** и разбор **преимуществ и недостатков** каждого подхода для продакшна.
 
