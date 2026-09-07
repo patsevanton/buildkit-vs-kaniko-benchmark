@@ -158,26 +158,9 @@ curl -sI https://storage.yandexcloud.net/kaniko-vs-buildkit-weights/model.bin \
 # ожидаем 200 и content-length ~1344997306
 ```
 
-> Terraform **не устанавливает** VictoriaMetrics k8s-stack (vmks) и GitLab Runner — он только рендерит `values/vmks-values.yaml`. Установка — отдельными шагами ниже.
+> Terraform **не устанавливает** VictoriaMetrics k8s-stack (vmks) и GitLab Runner — он только рендерит `values/vmks-values.yaml`. Для работы мониторинга требуется, чтобы была установлена VictoriaMetrics (инструкция по установке приведена в [AGENTS.md](AGENTS.md#установка-мониторинга-vmks)). Установка раннера — отдельным шагом ниже.
 
-### 1a. Установка мониторинга (vmks)
-
-```bash
-helm repo add victoriametrics https://victoriametrics.github.io/helm-charts/
-helm repo update
-helm upgrade --install vmks victoriametrics/victoria-metrics-k8s-stack \
-  --version 0.91.2 \
-  --namespace vmks \
-  --create-namespace \
-  --values values/vmks-values.yaml \
-  --timeout 15m
-```
-
-Перед установкой убедитесь, что кластер доступен (`kubectl get nodes`) и
-отрендерен `values/vmks-values.yaml` (создаётся при `terraform apply`).
-`helm upgrade --install` идемпотентен — повторный запуск безопасен.
-
-### 1b. Установка GitLab Runner
+### 1a. Установка GitLab Runner
 
 ```bash
 helm repo add gitlab-runner https://charts.gitlab.io/
@@ -414,7 +397,7 @@ Kaniko — «заниженный порог входа» для безопас�
 | `k8s.tf` | Managed K8s (master 1.33, региональный), node group 6×8 vCPU/16 ГБ, Traefik |
 | `registry.tf` | Yandex Container Registry + IAM-привязка для SA кластера, outputs `registry_id`/`registry_server` |
 | `weights.tf` | S3-бакет `kaniko-vs-buildkit-weights` (public-read) для весов ML-проекта, вывод `ml_weights_url` |
-| `monitoring.tf`, `values/vmks-values.yaml.tftpl` | Рендер values для VictoriaMetrics k8s-stack в namespace `vmks` (с отключёнными scrape control-plane); установка — через `helm` (см. раздел 1a) |
+| `monitoring.tf`, `values/vmks-values.yaml.tftpl` | Рендер values для VictoriaMetrics k8s-stack в namespace `vmks` (с отключёнными scrape control-plane); установка — через `helm` (см. AGENTS.md) |
 | `gitlab-runner/values.yaml` | Values helm-чарта GitLab Runner (executor kubernetes, лимиты build-контейнера) |
 | `gitlab-runner/README.md` | Инструкция по установке и настройке GitLab Runner (командой `helm`, токен — через `--set-string`) |
 | `dashboards/kaniko-vs-buildkit-gitlab-runner.json` | Дашборд Grafana: 3 панели (CPU, Memory, Elapsed) для сравнения BuildKit и Kaniko |

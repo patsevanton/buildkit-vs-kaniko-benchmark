@@ -40,6 +40,21 @@ Operational notes for working with this repo's infrastructure (Yandex Cloud + Ma
 - Контекст сборки — **сам репозиторий проекта** (Dockerfile + исходники в корне main-ветки). Каждый из 7 проектов — отдельный репозиторий группы `gitlab.com/buildkit-vs-kaniko-benchmark`.
 - Пара `kaniko+buildkit` одного проекта запускается GitLab'ом параллельно (одна стадия в `.gitlab-ci.yml`); между проектами — независимые пайплайны.
 
+## Установка мониторинга (vmks)
+
+```bash
+helm repo add victoriametrics https://victoriametrics.github.io/helm-charts/
+helm repo update
+helm upgrade --install vmks victoriametrics/victoria-metrics-k8s-stack \
+  --version 0.91.2 \
+  --namespace vmks \
+  --create-namespace \
+  --values values/vmks-values.yaml \
+  --timeout 15m
+```
+
+Перед установкой убедитесь, что кластер доступен (`kubectl get nodes`) и отрендерен `values/vmks-values.yaml` (создаётся при `terraform apply`). `helm upgrade --install` идемпотентен — повторный запуск безопасен.
+
 ## Команды проверки
 
 ```bash

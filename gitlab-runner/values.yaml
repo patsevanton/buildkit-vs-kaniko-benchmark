@@ -1,15 +1,3 @@
-# Values для GitLab Runner (executor: kubernetes) на Managed Yandex K8s.
-#
-# Установка выполняется командой helm (см. README.md, раздел 1b):
-#   helm upgrade --install gitlab-runner gitlab-runner/gitlab-runner \
-#     --values gitlab-runner/values.yaml \
-#     --set-string "runnerToken=<runner-token>"
-#
-# Раннер подключается к gitlab.com и запускает CI-джобы в namespace gitlab-runner
-# того же кластера, где поднят стенд (ноды без публичных IP, исходящий трафик
-# через NAT). Метрики CPU/RAM джобов снимает cAdvisor (vmks) — они попадают
-# в VictoriaMetrics и видны в Grafana (dashboards/).
-
 gitlabUrl: https://gitlab.com/
 
 # Количество параллельно выполняемых джобов. Пара kaniko+buildkit одного
@@ -24,7 +12,6 @@ rbac:
 serviceAccount:
   create: true
 
-# Поды джобов создаются в том же namespace, что и сам раннер.
 runners:
   executor: kubernetes
   # Тег, по которому джобы в .gitlab-ci.yml выбирают этот раннер.
@@ -68,6 +55,3 @@ resources:
   limits:
     cpu: 500m
     memory: 512Mi
-
-# Пустой значения: секреты в репозиторий не коммитятся, токен передаётся
-# командой helm через --set-string "runnerToken=<runner-token>".
