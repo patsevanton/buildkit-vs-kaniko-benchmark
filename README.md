@@ -234,6 +234,34 @@ cAdvisor. Файл `dashboards/kaniko-vs-buildkit-per-project.json` — импо
 его в Grafana вручную (Grafana → Dashboards → Import → Upload JSON), либо
 применяется через ConfigMap-подход автоматически (см. `dashboards/README.md`).
 
+### Скриншоты дашборда
+
+На всех панелях (CPU, Memory, Elapsed) линии инструментов различаются
+визуально — цвет и стиль заданы в дашборде через `fieldConfig.overrides`:
+
+| Инструмент | Линия |
+|---|---|
+| **BuildKit** (refId A) | зелёная сплошная, толщина 2 |
+| **Kaniko** (refId B) | оранжевая пунктирная, толщина 2 |
+
+Скриншоты складывать в каталог `img/` (по одному на проект, имя файла — по
+имени проекта, например `img/flask.png`):
+
+![flask — CPU / Memory / Elapsed](img/flask.png)
+
+![nestjs — CPU / Memory / Elapsed](img/nestjs.png)
+
+![nextjs — CPU / Memory / Elapsed](img/nextjs.png)
+
+![nuxtjs — CPU / Memory / Elapsed](img/nuxtjs.png)
+
+![golang — CPU / Memory / Elapsed](img/golang.png)
+
+![android — CPU / Memory / Elapsed](img/android.png)
+
+![ml-pytorch — CPU / Memory / Elapsed](img/ml-pytorch.png)
+
+
 ## Ожидаемые результаты
 
 Таблица заполняется после реального прогона (см. «Как заполнить результаты» ниже). Ожидания из практики:
