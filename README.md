@@ -2,7 +2,7 @@
 
 ## Введение
 
-В Kubernetes-кластере рано или поздно встаёт вопрос: **где собирать Docker/OCI-образы приложений?** Вариант «на своей машине разработчика» не масштабируется на команду, а классический `docker build` прямо в поде Kubernetes невозможен из-за отсутствия демона Docker в контейнере. Вынос сборок на отдельную виртуальную машину решает эту проблему, но создаёт накладные расходы на обслуживание инфраструктуры и лишает ключевых преимуществ k8s: отдельная ВМ не масштабируется горизонтально под нагрузку, параллельные джобы конкурируют за общие CPU, RAM и диск, а накапливающийся кэш требует регулярной очистки.
+В Kubernetes-кластере рано или поздно встаёт вопрос: **где собирать Docker/OCI-образы приложений?** Вариант «на своей машине разработчика» не масштабируется на команду. Вынос сборок на отдельную виртуальную машину решает эту проблему, но создаёт накладные расходы на обслуживание инфраструктуры и лишает ключевых преимуществ k8s: отдельная ВМ не масштабируется горизонтально под нагрузку, параллельные джобы конкурируют за общие CPU, RAM и диск, а накапливающийся кэш требует регулярной очистки.
 
 Kubernetes executor с использованием **Kaniko** и **BuildKit** лишен этих недостатков: сборка происходит в изолированных подах прямо на нодах кластера, ресурсы динамически масштабируются, а виртуальные машины для Docker-демона больше не требуются.
 
@@ -14,8 +14,6 @@ Kubernetes executor с использованием **Kaniko** и **BuildKit** �
 В этой статье будет протестировано **7 проектов** разных языков и фреймворков собираются обоими инструментами в одних и тех же условиях, с замером времени, потребления CPU/RAM и поведения кэша. В конце — **итоговая сводная таблица** и разбор **преимуществ и недостатков** каждого подхода для продакшна.
 
 ## Концепция
-
-В отличие от старого варианта (Kubernetes Job вручную), теперь сборка запускается **GitLab CI**:
 
 - **7 проектов** — отдельные репозитории группы [gitlab.com/buildkit-vs-kaniko-benchmark](https://gitlab.com/buildkit-vs-kaniko-benchmark). В корне каждого лежат Dockerfile и исходники (контекст сборки).
 - Каждый репозиторий содержит `.gitlab-ci.yml` с **двумя параллельными job'ами** — `kaniko-build` и `buildkit-build`.
@@ -81,17 +79,6 @@ Terraform поднимает:
 
 Yandex Container Registry + IAM-привязку для сервисного аккаунта кластера (`container-registry.images.pusher` / `container-registry.images.puller`).
 
-**GitLab Runner** устанавливается отдельно командой `helm` (helm-чарт, executor kubernetes) — terraform его не ставит.
-
-## Сравниваемые варианты
-
-| Вариант | Образ | Запуск | Auth в registry |
-|---|---|---|---|
-| **Kaniko** | `gcr.io/kaniko-project/executor:v1.23.2-debug` | Job GitLab CI (под раннера, обычный контейнер без privileged, root внутри) | IAM-токен из метаданных ноды → `config.json` в `/kaniko/.docker` |
-| **BuildKit** | `moby/buildkit:v0.32.2-rootless` | Job GitLab CI, **daemonless** (`buildctl-daemonless.sh`), демон `buildkitd` rootless (`--oci-worker-no-process-sandbox`) | IAM-токен из метаданных ноды → `config.json` в `~/.docker` |
-
-Оба пушат в один и тот же Yandex Container Registry (`cr.yandex/<registry-id>/`), по своему репозиторию на проект (`<project>-kaniko`, `<project>-buildkit`). Оба инструмента работают **без privileged** и **daemonless** — условия замеров уравнены, разница — только в самом инструменте сборки.
-
 ## Развёртывание
 
 ### 1. Terraform
@@ -119,36 +106,6 @@ terraform apply -auto-approve
 - Source (Hugging Face): `https://huggingface.co/google-bert/bert-large-uncased/resolve/main/pytorch_model.bin`
 - В бакет кладётся под ключом `pytorch_model.bin`
 - URL для BUILD-стадии: `https://storage.yandexcloud.net/kaniko-vs-buildkit-weights/pytorch_model.bin` (выводит `terraform output -raw ml_weights_url`)
-
-#### Как залить (одним из способов)
-
-Требуется: Yandex Cloud CLI, авторизация, статические ключи доступа для Object Storage
-(создать через `yc iam access-key create --service-account-name ...` или в консоли).
-
-**Вариант A — `mc` (MinIO Client):**
-
-```bash
-MC_HOST_s3=https://<access_key>:<secret_key>@storage.yandexcloud.net
-mc cp pytorch_model.bin s3/kaniko-vs-buildkit-weights/pytorch_model.bin
-```
-
-**Вариант B — AWS CLI (S3-совместимый API):**
-
-```bash
-AWS_ACCESS_KEY_ID=<access_key> \
-AWS_SECRET_ACCESS_KEY=<secret_key> \
-aws --endpoint-url=https://storage.yandexcloud.net \
-  s3 cp pytorch_model.bin s3://kaniko-vs-buildkit-weights/pytorch_model.bin
-```
-
-**Вариант C — `yc storage` + curl (без доп. клиентов):**
-
-```bash
-# 1. Скачать модель с HF
-curl -fSL -o pytorch_model.bin https://huggingface.co/google-bert/bert-large-uncased/resolve/main/pytorch_model.bin
-# 2. Залить S3-совместимым клиентом (mc/aws) — без этих утилит Yandex CLI
-#    не умеет грузить объекты, см. варианты A/B.
-```
 
 #### Проверка
 
