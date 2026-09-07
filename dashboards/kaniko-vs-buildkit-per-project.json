@@ -190,7 +190,7 @@
       "type": "timeseries"
     }
   ],
-  "refresh": "",
+  "refresh": "10s",
   "schemaVersion": 39,
   "tags": ["kaniko", "buildkit", "benchmark", "gitlab-runner"],
   "templating": {
