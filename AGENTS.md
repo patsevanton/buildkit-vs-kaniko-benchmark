@@ -31,7 +31,7 @@ Operational notes for working with this repo's infrastructure (Yandex Cloud + Ma
 
 ```bash
 export GITLAB_TOKEN=$(sed -n 's/^gitlab_api_token\s*=\s*"\(.*\)"/\1/p' terraform.tfvars)
-scripts/run-pipeline-when-idle.sh flask                 # дождаться простоя и запустить
+scripts/run-pipeline-when-idle.sh nextjs                # дождаться простоя и запустить
 scripts/run-pipeline-when-idle.sh android --dry-run     # только дождаться простоя раннера
 ```
 
@@ -43,14 +43,14 @@ scripts/run-pipeline-when-idle.sh android --dry-run     # только дожд�
 
 - Yandex Container Registry создаётся в `registry.tf`; сервисному аккаунту **нод** кластера (`sa_k8s_node`) выданы роли `container-registry.images.pusher` и `container-registry.images.puller` на конкретный registry (не на фолдер).
 - Сервисные аккаунты кластера разделены (`k8s.tf`): `sa_k8s_master` (`service_account_id`) с минимальными ролями `k8s.clusters.agent` + `vpc.publicAdmin` + `load-balancer.admin` (вместо прежней `editor` на весь фолдер) и `sa_k8s_node` (`node_service_account_id`) без ролей на фолдер — только registry-роли выше.
-- В CI-джобах (kaniko/buildkit, см. `.gitlab-ci.yml` в каждом из 7 репозиториев группы `gitlab.com/buildkit-vs-kaniko-benchmark`) auth выполняется **короткоживущим IAM-токеном из метаданных ноды** (`http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token`, формат Google Compute Engine), username — `iam`. Токен живёт ~12 часов и не хранится в репозитории. Для работы этого механизма ноды (и поды раннера на них) должны иметь сервисный аккаунт с ролью на registry (выдана выше).
+- В CI-джобах (kaniko/buildkit, см. `.gitlab-ci.yml` в каждом из 5 репозиториев группы `gitlab.com/buildkit-vs-kaniko-benchmark`) auth выполняется **короткоживущим IAM-токеном из метаданных ноды** (`http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token`, формат Google Compute Engine), username — `iam`. Токен живёт ~12 часов и не хранится в репозитории. Для работы этого механизма ноды (и поды раннера на них) должны иметь сервисный аккаунт с ролью на registry (выдана выше).
 - Docker config формируется в `before_script` каждого job'а прямо в build-контейнере (без init-контейнеров).
 
 ## Известные нюансы
 
 - **BuildKit в этом бенчмарке работает в rootless-режиме** (`moby/buildkit:v0.32.2-rootless`) в daemonless-режиме — условия уравнены с Kaniko (оба без privileged). Rootless требует unprivileged user namespaces на нодах (при падении с `/proc/sys/user/max_user_namespaces` — DaemonSet-воркараунд из `examples/kubernetes/sysctl-userns.privileged.yaml` в moby/buildkit), а build-контейнеру нужен ослабленный securityContext: `seccompProfile: Unconfined` + `appArmorProfile: Unconfined` (задаётся в `gitlab-runner/values.yaml` через `build_container_security_context`).
 - Сборка запускается **GitLab Runner'ом (executor kubernetes)**, развёрнутым в этом же кластере через helm (см. `gitlab-runner/`). Токен раннера передаётся скрипту аргументом и в репозиторий не коммитится.
-- Контекст сборки — **сам репозиторий проекта** (Dockerfile + исходники в корне main-ветки). Каждый из 7 проектов — отдельный репозиторий группы `gitlab.com/buildkit-vs-kaniko-benchmark`.
+- Контекст сборки — **сам репозиторий проекта** (Dockerfile + исходники в корне main-ветки). Каждый из 5 проектов — отдельный репозиторий группы `gitlab.com/buildkit-vs-kaniko-benchmark`.
 - Пара `kaniko+buildkit` одного проекта запускается GitLab'ом параллельно (одна стадия в `.gitlab-ci.yml`); между проектами — независимые пайплайны.
 
 ## Установка мониторинга (vmks)

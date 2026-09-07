@@ -2,23 +2,21 @@
 
 ## Введение
 
-В Kubernetes-кластере рано или поздно встаёт вопрос: **где собирать Docker/OCI-образы приложений?** Вариант «на своей машине разработчика» не масштабируется на команду. Вынос сборок на отдельную виртуальную машину решает эту проблему, но создаёт накладные расходы на обслуживание инфраструктуры и лишает ключевых преимуществ k8s: отдельная ВМ не масштабируется горизонтально под нагрузку, параллельные джобы конкурируют за общие CPU, RAM и диск, а накапливающийся кэш требует регулярной очистки.
+В Kubernetes-кластере рано или поздно встаёт вопрос: **где собирать Docker image приложений?** Вариант «на своей машине разработчика» не масштабируется на команду. Вынос сборок на отдельную виртуальную машину решает эту проблему, но создаёт накладные расходы на обслуживание инфраструктуры и лишает ключевых преимуществ k8s: отдельная ВМ не масштабируется горизонтально под нагрузку, параллельные джобы конкурируют за общие CPU, RAM и диск, а накапливающийся кэш требует регулярной очистки.
 
-Kubernetes executor с использованием **Kaniko** и **BuildKit** лишен этих недостатков: сборка происходит в изолированных подах прямо на нодах кластера, ресурсы динамически масштабируются, а виртуальные машины для Docker-демона больше не требуются.
-
-Классических ответов два — **Kaniko** и **BuildKit**:
+Классических ответов два — **Kaniko** и **BuildKit**. Kubernetes executor с использованием **Kaniko** или **BuildKit** лишен этих недостатков: сборка происходит в изолированных подах прямо на нодах кластера, ресурсы динамически масштабируются, а виртуальные машины для Docker-демона больше не требуются.
 
 - **Kaniko** ([GoogleContainerTools/kaniko](https://github.com/GoogleContainerTools/kaniko)) — инструмент от Google для сборки без privileged-контейнера. С июня 2025 года репозиторий архивирован и проект больше не развивается.
 - **BuildKit** ([moby/buildkit](https://github.com/moby/buildkit)) — стандартный движок `docker build`, работающий в k8s в daemonless и rootless-режиме без привилегий ноды.
 
-В этой статье будет протестировано **7 проектов** разных языков и фреймворков собираются обоими инструментами в одних и тех же условиях, с замером времени, потребления CPU/RAM и поведения кэша. В конце — **итоговая сводная таблица** и разбор **преимуществ и недостатков** каждого подхода для продакшна.
+В этой статье будет протестировано **5 проектов** разных языков и фреймворков собираются обоими инструментами в одних и тех же условиях, с замером времени, потребления CPU/RAM и поведения кэша. В конце — **итоговая сводная таблица** и разбор **преимуществ и недостатков** каждого подхода для продакшна.
 
 ## Концепция
 
-- **7 проектов** — отдельные репозитории группы [gitlab.com/buildkit-vs-kaniko-benchmark](https://gitlab.com/buildkit-vs-kaniko-benchmark). В корне каждого лежат Dockerfile и исходники (контекст сборки).
+- **5 проектов** — отдельные репозитории группы [gitlab.com/buildkit-vs-kaniko-benchmark](https://gitlab.com/buildkit-vs-kaniko-benchmark). В корне каждого лежат Dockerfile и исходники (контекст сборки).
 - Каждый репозиторий содержит `.gitlab-ci.yml` с **двумя параллельными job'ами** — `kaniko-build` и `buildkit-build`.
 - Сборки выполняет **GitLab Runner (Kubernetes executor)**, развёрнутый в этом же кластере (helm-чарт, каталог `gitlab-runner/`).
-- Результаты собираются в **Grafana**: дашборд с тремя панелями для сравнения **BuildKit** и **Kaniko** (CPU, RAM и длительность build-контейнера) **по выбранному проекту** (переменная `$project`).
+- Результаты собираются в **Grafana**: дашборд с двумя панелями для сравнения **BuildKit** и **Kaniko** (CPU и RAM) **по выбранному проекту** (переменная `$project`).
 
 ## Что измеряем
 
@@ -29,24 +27,22 @@ Kubernetes executor с использованием **Kaniko** и **BuildKit** �
 
 ## Сравниваемые проекты
 
-Бенчмарк собирает **7 проектов** — по одному на характерный «профиль сборки»:
+Бенчмарк собирает **5 проектов** — по одному на характерный «профиль сборки»:
 
 | № | Проект | Язык/Framework | Профиль сборки | Репозиторий |
 |---|---|---|---|---|
-| 1 | **Flask + Gunicorn** | Python | `pip install` multi-stage | [`flask`](https://gitlab.com/buildkit-vs-kaniko-benchmark/flask) |
-| 2 | **NestJS** | Node/TS | тяжёлый `npm ci` + декораторы, tsc | [`nestjs`](https://gitlab.com/buildkit-vs-kaniko-benchmark/nestjs) |
-| 3 | **Next.js** | Node/React SSR | `npm ci` + сборка клиента | [`nextjs`](https://gitlab.com/buildkit-vs-kaniko-benchmark/nextjs) |
-| 4 | **Nuxt 3** | Node/Vue SSR | `npm ci` + сборка клиента | [`nuxtjs`](https://gitlab.com/buildkit-vs-kaniko-benchmark/nuxtjs) |
-| 5 | **Go HTTP-сервис** | Go | `go build` → статический бинарник (из scratch) | [`golang`](https://gitlab.com/buildkit-vs-kaniko-benchmark/golang) |
-| 6 | **Android APK** | Java/Kotlin, Gradle | `assembleRelease`, тяжёлый Gradle/SDK | [`android`](https://gitlab.com/buildkit-vs-kaniko-benchmark/android) |
-| 7 | **ML: PyTorch inference** | Python | `pip install torch` + скачивание ~1.3 ГБ весов в BUILD-стадии (public S3-бакет) | [`ml-pytorch`](https://gitlab.com/buildkit-vs-kaniko-benchmark/ml-pytorch) |
+| 1 | **Next.js** | Node/React SSR | `npm ci` + сборка клиента | [`nextjs`](https://gitlab.com/buildkit-vs-kaniko-benchmark/nextjs) |
+| 2 | **Nuxt 3** | Node/Vue SSR | `npm ci` + сборка клиента | [`nuxtjs`](https://gitlab.com/buildkit-vs-kaniko-benchmark/nuxtjs) |
+| 3 | **Go HTTP-сервис** | Go | `go build` → статический бинарник (из scratch) | [`golang`](https://gitlab.com/buildkit-vs-kaniko-benchmark/golang) |
+| 4 | **Android APK** | Java/Kotlin, Gradle | `assembleRelease`, тяжёлый Gradle/SDK | [`android`](https://gitlab.com/buildkit-vs-kaniko-benchmark/android) |
+| 5 | **ML: PyTorch inference** | Python | `pip install torch` + скачивание ~1.3 ГБ весов в BUILD-стадии (public S3-бакет) | [`ml-pytorch`](https://gitlab.com/buildkit-vs-kaniko-benchmark/ml-pytorch) |
 
 ## Архитектура стенда
 
 ```mermaid
 flowchart TB
     subgraph GL["gitlab.com/buildkit-vs-kaniko-benchmark"]
-        P1["7 репозиториев<br/>(Dockerfile + исходники + .gitlab-ci.yml)"]
+        P1["5 репозиториев<br/>(Dockerfile + исходники + .gitlab-ci.yml)"]
     end
 
     subgraph K8s["Managed Yandex K8s (1.33)"]
@@ -154,12 +150,12 @@ Variables** задать:
 
 ### 4. Перенос проектов в репозитории
 
-Каждый из 7 проектов — отдельный репозиторий группы. Содержимое (Dockerfile +
+Каждый из 5 проектов — отдельный репозиторий группы. Содержимое (Dockerfile +
 исходники + `.gitlab-ci.yml`) кладётся в корень main-ветки соответствующего
-репозитория. Имена репозиториев: `android`, `flask`, `golang`, `ml-pytorch`,
-`nestjs`, `nextjs`, `nuxtjs`.
+репозитория. Имена репозиториев: `android`, `golang`, `ml-pytorch`,
+`nextjs`, `nuxtjs`.
 
-Эталонный `.gitlab-ci.yml` (одинаков для всех 7 проектов; `$CI_PROJECT_NAME`
+Эталонный `.gitlab-ci.yml` (одинаков для всех 5 проектов; `$CI_PROJECT_NAME`
 автоматически подставляет имя репозитория):
 
 ```yaml
@@ -242,7 +238,7 @@ cAdvisor. Файл `dashboards/kaniko-vs-buildkit-per-project.json` — импо
 
 ### Скриншоты дашборда
 
-На всех панелях (CPU, Memory, Elapsed) линии инструментов различаются
+На всех панелях (CPU, Memory) линии инструментов различаются
 визуально — цвет и стиль заданы в дашборде через `fieldConfig.overrides`:
 
 | Инструмент | Линия |
@@ -251,21 +247,17 @@ cAdvisor. Файл `dashboards/kaniko-vs-buildkit-per-project.json` — импо
 | **Kaniko** (refId B) | оранжевая пунктирная, толщина 2 |
 
 Скриншоты складывать в каталог `img/` (по одному на проект, имя файла — по
-имени проекта, например `img/flask.png`):
+имени проекта, например `img/nextjs.png`):
 
-![flask — CPU / Memory / Elapsed](img/flask.png)
+![nextjs — CPU / Memory](img/nextjs.png)
 
-![nestjs — CPU / Memory / Elapsed](img/nestjs.png)
+![nuxtjs — CPU / Memory](img/nuxtjs.png)
 
-![nextjs — CPU / Memory / Elapsed](img/nextjs.png)
+![golang — CPU / Memory](img/golang.png)
 
-![nuxtjs — CPU / Memory / Elapsed](img/nuxtjs.png)
+![android — CPU / Memory](img/android.png)
 
-![golang — CPU / Memory / Elapsed](img/golang.png)
-
-![android — CPU / Memory / Elapsed](img/android.png)
-
-![ml-pytorch — CPU / Memory / Elapsed](img/ml-pytorch.png)
+![ml-pytorch — CPU / Memory](img/ml-pytorch.png)
 
 
 ## Ожидаемые результаты
@@ -284,21 +276,19 @@ cAdvisor. Файл `dashboards/kaniko-vs-buildkit-per-project.json` — импо
 
 ## Как заполнить сводную таблицу результатов
 
-1. Запустите пайплайн в каждом из 7 репозиториев (первый прогон — холодный кэш).
+1. Запустите пайплайн в каждом из 5 репозиториев (первый прогон — холодный кэш).
 2. Зафиксируйте длительность job'ов `kaniko-build` и `buildkit-build` (страница
    пайплайна в GitLab или API `GET /projects/:id/pipelines/:pipeline_id/jobs`).
 3. Запустите повторный прогон (тёплый кэш) тем же способом — запишите вторые числа.
 4. Снимите CPU/RAM с дашборда Grafana за соответствующий интервал.
 5. Внесите числа в таблицу ниже и сформулируйте вывод.
 
-### Итоговая сводная таблица (7 проектов)
+### Итоговая сводная таблица (5 проектов)
 
 Заполняется после реального прогона. Пример формата:
 
 | Проект | Время kaniko (с) | Время buildkit (с) | Выигрыш BuildKit % |
 |---|---|---|---|
-| flask | _заполнить_ | _заполнить_ | _заполнить_ |
-| nestjs | _заполнить_ | _заполнить_ | _заполнить_ |
 | nextjs | _заполнить_ | _заполнить_ | _заполнить_ |
 | nuxtjs | _заполнить_ | _заполнить_ | _заполнить_ |
 | golang | _заполнить_ | _заполнить_ | _заполнить_ |

@@ -13,10 +13,10 @@
 #   run-pipeline-when-idle.sh <project> [--branch main] [--interval 15] [--timeout 3600] [--dry-run]
 #
 #   <project>  имя репозитория в группе buildkit-vs-kaniko-benchmark
-#              (flask, nestjs, nextjs, nuxtjs, golang, android, ml-pytorch)
+#              (nextjs, nuxtjs, golang, android, ml-pytorch)
 #
 # Примеры:
-#   run-pipeline-when-idle.sh flask
+#   run-pipeline-when-idle.sh nextjs
 #   run-pipeline-when-idle.sh ml-pytorch --branch main --interval 10
 #   run-pipeline-when-idle.sh android --dry-run   # только дождаться простоя раннера
 #

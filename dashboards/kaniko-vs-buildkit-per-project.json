@@ -126,68 +126,6 @@
       ],
       "title": "Memory",
       "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
-      "id": 4,
-      "title": "Длительность сборки (duration job)",
-      "type": "row"
-    },
-    {
-      "id": 5,
-      "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "seconds",
-            "axisPlacement": "auto",
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": { "group": "A", "mode": "none" }
-          },
-          "unit": "s"
-        },
-        "overrides": [
-          {
-            "matcher": { "id": "byFrameRefID", "options": "A" },
-            "properties": [
-              { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } },
-              { "id": "custom.lineWidth", "value": 2 }
-            ]
-          },
-          {
-            "matcher": { "id": "byFrameRefID", "options": "B" },
-            "properties": [
-              { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } },
-              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
-              { "id": "custom.lineWidth", "value": 2 }
-            ]
-          }
-        ]
-      },
-      "targets": [
-        {
-          "expr": "time() - container_start_time_seconds{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}",
-          "legendFormat": "buildkit",
-          "refId": "A"
-        },
-        {
-          "expr": "time() - container_start_time_seconds{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}",
-          "legendFormat": "kaniko",
-          "refId": "B"
-        }
-      ],
-      "title": "Elapsed (растущее время сборки)",
-      "type": "timeseries"
     }
   ],
   "refresh": "10s",
@@ -196,22 +134,20 @@
   "templating": {
     "list": [
       {
-        "current": { "selected": false, "text": "flask", "value": "86139386" },
+        "current": { "selected": true, "text": "nextjs", "value": "86139390" },
         "hide": 0,
         "includeAll": false,
         "label": "Проект",
         "multi": false,
         "name": "project",
         "options": [
-          { "selected": true, "text": "flask", "value": "86139386" },
-          { "selected": false, "text": "nestjs", "value": "86139389" },
-          { "selected": false, "text": "nextjs", "value": "86139390" },
+          { "selected": true, "text": "nextjs", "value": "86139390" },
           { "selected": false, "text": "nuxtjs", "value": "86139396" },
           { "selected": false, "text": "golang", "value": "86139398" },
           { "selected": false, "text": "android", "value": "86139404" },
           { "selected": false, "text": "ml-pytorch", "value": "86139409" }
         ],
-        "query": "flask : 86139386, nestjs : 86139389, nextjs : 86139390, nuxtjs : 86139396, golang : 86139398, android : 86139404, ml-pytorch : 86139409",
+        "query": "nextjs : 86139390, nuxtjs : 86139396, golang : 86139398, android : 86139404, ml-pytorch : 86139409",
         "skipUrlSync": false,
         "type": "custom"
       }

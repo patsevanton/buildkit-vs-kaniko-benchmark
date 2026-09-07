@@ -1,6 +1,6 @@
 # GitLab Runner (executor: kubernetes)
 
-Развёртывание GitLab Runner в кластере стенда для сборки 7 проектов бенчмарка
+Развёртывание GitLab Runner в кластере стенда для сборки 5 проектов бенчмарка
 (группа `gitlab.com/buildkit-vs-kaniko-benchmark`).
 
 ## Что это

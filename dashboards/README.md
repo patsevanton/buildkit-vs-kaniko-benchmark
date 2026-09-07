@@ -1,11 +1,10 @@
 # Dashboard бенчмарка Kaniko vs BuildKit
 
-`kaniko-vs-buildkit-per-project.json` — Grafana-дашборд с тремя панелями для
+`kaniko-vs-buildkit-per-project.json` — Grafana-дашборд с двумя панелями для
 сравнения инструментов (**BuildKit** vs **Kaniko**) **по одному выбранному проекту**:
 
 - **CPU** — CPU rate (cores) build-контейнеров джобов `buildkit-build` и `kaniko-build`;
-- **Memory** — memory working set (bytes) build-контейнеров;
-- **Elapsed** — растущее время сборки (seconds) build-контейнеров.
+- **Memory** — memory working set (bytes) build-контейнеров.
 
 ## Как различаются инструмент и проект
 
@@ -24,12 +23,10 @@ runner-vy3wuq-9w-project-86139409-concurrent-0-c6pxqt2m
 
 В запросы панелей встроен фильтр `pod=~".*-project-$project-concurrent-.*"`.
 
-Переменная `$project` — custom-список «имя : ID» семи проектов группы:
+Переменная `$project` — custom-список «имя : ID» пяти проектов группы:
 
 | Проект | ID |
 |---|---|
-| flask | 86139386 |
-| nestjs | 86139389 |
 | nextjs | 86139390 |
 | nuxtjs | 86139396 |
 | golang | 86139398 |
@@ -71,5 +68,4 @@ Datasource — `VictoriaMetrics` (UID `VictoriaMetrics`).
   именем пода (`graphTooltip` = shared crosshair).
 - Дашборд показывает **ресурсы build-контейнера во время сборки**. Итоговая
   длительность сборки каждого инструмента = длительность соответствующего job
-  в GitLab (на странице пайплайна или в API). Сводку по всем проектам удобно
-  собирать из длительностей джобов.
+  в GitLab (на странице пайплайна или в API).
