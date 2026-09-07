@@ -81,41 +81,12 @@ Yandex Container Registry + IAM-привязку для сервисного а�
 
 ## Развёртывание
 
-### 1. Terraform
+Перед развертыванием gitlab runner требуется чтобы у вас был создан Kubernetes кластер, S3 бакет и Container Registry.
 
-```bash
-terraform init
-terraform apply -auto-approve
-```
+В S3 бакет заливаем файл весов, например [pytorch_model](https://huggingface.co/google-bert/bert-large-uncased/resolve/main/pytorch_model.bin) для job `ml-pytorch`.
 
-После apply Terraform выводит:
 
-- `k8s_cluster_credentials_command` — команда получения доступа к K8s;
-- `grafana_url` + `grafana_admin_password_command` — доступ к дашборду;
-- `registry_id` — id Yandex Container Registry (для переменной `YCR_REGISTRY_ID` в GitLab CI);
-- `ml_weights_url` — URL весов ML-модели (бакет `kaniko-vs-buildkit-weights`).
-
-> Бакет `kaniko-vs-buildkit-weights` создаётся **Terraform'ом** (`weights.tf`, public-read).
-> Файл весов заливается **один раз вручную** — генерировать 1.3 ГБ на каждый
-> `terraform apply` нельзя. Без залитых весов джоб `ml-pytorch` упадёт на скачивании.
-
-#### Какой файл
-
-Модель `google-bert/bert-large-uncased` → файл `pytorch_model.bin` (**~1.28 ГБ**):
-
-- Source (Hugging Face): `https://huggingface.co/google-bert/bert-large-uncased/resolve/main/pytorch_model.bin`
-- В бакет кладётся под ключом `pytorch_model.bin`
-- URL для BUILD-стадии: `https://storage.yandexcloud.net/kaniko-vs-buildkit-weights/pytorch_model.bin` (выводит `terraform output -raw ml_weights_url`)
-
-#### Проверка
-
-```bash
-curl -sI https://storage.yandexcloud.net/kaniko-vs-buildkit-weights/pytorch_model.bin \
-  | grep -iE "HTTP|content-length"
-# ожидаем 200 и content-length ~1344997306
-```
-
-> Terraform **не устанавливает** VictoriaMetrics k8s-stack (vmks) и GitLab Runner — он только рендерит `values/vmks-values.yaml`. Для работы мониторинга требуется, чтобы была установлена VictoriaMetrics (инструкция по установке приведена в [AGENTS.md](AGENTS.md#установка-мониторинга-vmks)). Установка раннера — отдельным шагом ниже.
+Для мониторинга устанавливаем VictoriaMetrics k8s-stack.
 
 ### 1a. Установка GitLab Runner
 
