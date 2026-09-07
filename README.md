@@ -8,8 +8,8 @@ Kubernetes executor с использованием **Kaniko** и **BuildKit** �
 
 Классических ответов два — **Kaniko** и **BuildKit**:
 
-- **Kaniko** ([GoogleContainerTools/kaniko](https://github.com/GoogleContainerTools/kaniko), образ `gcr.io/kaniko-project/executor`) — инструмент от Google для сборки без privileged-контейнера. С июня 2025 года репозиторий архивирован и проект больше не развивается.
-- **BuildKit** ([moby/buildkit](https://github.com/moby/buildkit)) — стандартный движок `docker build`, работающий в k8s в daemonless и rootless-режиме (`moby/buildkit:v0.32.2-rootless`) без привилегий ноды.
+- **Kaniko** ([GoogleContainerTools/kaniko](https://github.com/GoogleContainerTools/kaniko)) — инструмент от Google для сборки без privileged-контейнера. С июня 2025 года репозиторий архивирован и проект больше не развивается.
+- **BuildKit** ([moby/buildkit](https://github.com/moby/buildkit)) — стандартный движок `docker build`, работающий в k8s в daemonless и rootless-режиме без привилегий ноды.
 
 В этой статье будет протестировано **7 проектов** разных языков и фреймворков собираются обоими инструментами в одних и тех же условиях, с замером времени, потребления CPU/RAM и поведения кэша. В конце — **итоговая сводная таблица** и разбор **преимуществ и недостатков** каждого подхода для продакшна.
 
@@ -19,7 +19,7 @@ Kubernetes executor с использованием **Kaniko** и **BuildKit** �
 
 - **7 проектов** — отдельные репозитории группы [gitlab.com/buildkit-vs-kaniko-benchmark](https://gitlab.com/buildkit-vs-kaniko-benchmark). В корне каждого лежат Dockerfile и исходники (контекст сборки).
 - Каждый репозиторий содержит `.gitlab-ci.yml` с **двумя параллельными job'ами** — `kaniko-build` и `buildkit-build`.
-- Сборки выполняет **GitLab Runner (executor kubernetes)**, развёрнутый в этом же кластере (helm-чарт, каталог `gitlab-runner/`).
+- Сборки выполняет **GitLab Runner (Kubernetes executor)**, развёрнутый в этом же кластере (helm-чарт, каталог `gitlab-runner/`).
 - Результаты собираются в **Grafana**: дашборд с тремя панелями для прямого сравнения **BuildKit** и **Kaniko** (CPU, RAM и длительность build-контейнера).
 
 ## Что измеряем
@@ -28,9 +28,6 @@ Kubernetes executor с использованием **Kaniko** и **BuildKit** �
 |---|---|
 | **Время сборки** | длительность job'а `kaniko-build` / `buildkit-build` в GitLab (страница пайплайна или API) |
 | **Потребление CPU/RAM** | cAdvisor → VictoriaMetrics → дашборд Grafana «Kaniko vs BuildKit — GitLab Runner» |
-| **Кэширование слоёв** | повторный запуск того же Dockerfile с включённым кэшем: kaniko `--cache` (registry-кэш) и BuildKit `--import-cache`/`--export-cache type=registry` (тоже registry-кэш) |
-| **Особенности Managed Yandex K8s** | auth в Registry через IAM-токен из метаданных ноды, отсутствие потребности в privileged-контейнерах, daemonless-сборка без docker.sock |
-| **Поддержка Dockerfile-синтаксиса** | одинаковые Dockerfile (apt, multi-stage, COPY --from) — сравнение совместимости |
 
 ## Сравниваемые проекты
 
@@ -82,11 +79,7 @@ flowchart TB
 
 Terraform поднимает:
 
-- VPC + 3 приватные подсети (по одной в зонах `ru-central1-b/-d/-e`), NAT-шлюз с route table — ноды **без публичных IP** (согласно AGENTS.md);
-- Managed K8s master 1.33 (regional, 3 зоны), node group из 6 preemptible нод `standard-v3` 8 vCPU / 16 ГБ (по 2 ноды на зону);
-- Traefik (ingress) для доступа к Grafana через `sslip.io`;
-- **Yandex Container Registry** + IAM-привязку для сервисного аккаунта кластера (`container-registry.images.pusher` / `container-registry.images.puller`);
-- VictoriaMetrics k8s-stack в namespace **`vmks`** (с отключёнными scrape и правилами для control-plane — как того требует AGENTS.md для Managed Yandex K8s). Устанавливается **отдельным шагом** через `helm` после `terraform apply` — terraform только рендерит `values/vmks-values.yaml`.
+Yandex Container Registry + IAM-привязку для сервисного аккаунта кластера (`container-registry.images.pusher` / `container-registry.images.puller`).
 
 **GitLab Runner** устанавливается отдельно командой `helm` (helm-чарт, executor kubernetes) — terraform его не ставит.
 
