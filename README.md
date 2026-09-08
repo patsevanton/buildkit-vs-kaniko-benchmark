@@ -27,37 +27,7 @@
 
 ## Архитектура стенда
 
-```mermaid
-flowchart TB
-    subgraph GL["gitlab.com/buildkit-vs-kaniko-benchmark"]
-        P1["5 репозиториев<br/>(Dockerfile + исходники + .gitlab-ci.yml)"]
-    end
-
-    subgraph K8s["Managed Yandex K8s (1.33)"]
-        R["GitLab Runner (executor kubernetes)<br/>namespace gitlab-runner"]
-        K["Pod kaniko-build"]
-        B["Pod buildkit-build"]
-        R -->|"создаёт поды джобов"| K
-        R -->|"создаёт поды джобов"| B
-    end
-
-    subgraph YCR["Yandex Container Registry"]
-        REG["cr.yandex/&lt;id&gt;<br/>&lt;project&gt;-kaniko / &lt;project&gt;-buildkit<br/>(образ + кэш в одном репозитории)"]
-    end
-
-    MET["IAM-токен из метаданных ноды<br/>169.254.169.254 (сервисный аккаунт)"]
-    VM["VictoriaMetrics (vmks)"]
-    G["Grafana"]
-
-    GL -->|"job'ы в GitLab"| R
-    K -->|"push"| REG
-    B -->|"push"| REG
-    MET -.->|"auth"| K
-    MET -.->|"auth"| B
-    K -.->|"node metrics (cAdvisor)"| VM
-    B -.->|"node metrics (cAdvisor)"| VM
-    VM --> G
-```
+![Архитектура стенда](Архитектура_стенда.png)
 
 ## Развёртывание
 
