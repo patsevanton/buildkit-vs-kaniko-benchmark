@@ -142,16 +142,7 @@ resources:
 ### 2. Настройка переменных GitLab CI
 
 В группе `gitlab.com/buildkit-vs-kaniko-benchmark` → **Settings → CI/CD →
-Variables** задать:
-
-| Переменная | Значение |
-|---|---|
-| `YCR_REGISTRY_ID` | `terraform output -raw registry_id; echo` (id registry, `cr...`) |
-
-Переменная `YCR_REGISTRY` (адрес registry) задана по умолчанию в `.gitlab-ci.yml`
-как `cr.yandex` — её можно переопределить при необходимости.
-
-Секретов хранить не нужно: auth выполняется IAM-токеном из метаданных ноды.
+Variables** задать необходимо задать YCR_REGISTRY_ID.
 
 ### 3. Настройка GitLab Runner для push в Yandex Container Registry
 
@@ -237,13 +228,6 @@ buildkit-build:
         --export-cache "type=registry,ref=$YCR_REGISTRY/$YCR_REGISTRY_ID/$CI_PROJECT_NAME-buildkit,mode=max"
 ```
 
-Кэш обоих инструментов пишется в тот же репозиторий, что и сам образ
-(`$CI_PROJECT_NAME-kaniko` у Kaniko через `--cache-repo`,
-`$CI_PROJECT_NAME-buildkit` у BuildKit через `--export-cache type=registry`), а
-не в отдельные `…-kaniko-cache`/`…-buildkit-cache`: отдельный репозиторий кэша
-требует собственной политики очистки реестра, а кэш-теги корректно соседствуют с
-тегом `latest` образа в одном репозитории.
-
 Ослабленный securityContext для rootless BuildKit (`seccompProfile: Unconfined`,
 `appArmorProfile: Unconfined`) задаётся на уровне раннера в
 `gitlab-runner/values.yaml` (`build_container_security_context`) — в
@@ -253,7 +237,7 @@ buildkit-build:
 
 Запустите пайплайн в любом репозитории (Push → Pipeline). Пара
 `kaniko+buildkit` выполняется параллельно. Между проектами — независимые
-пайплайны (можно запускать все 7 параллельно).
+пайплайны (можно запускать все 5 параллельно).
 
 Длительность сборки каждого инструмента — это длительность соответствующего
 job'а в GitLab (страница пайплайна или GitLab API).
@@ -271,17 +255,6 @@ cAdvisor. Файл `dashboards/kaniko-vs-buildkit-per-project.json` — импо
 применяется через ConfigMap-подход автоматически (см. `dashboards/README.md`).
 
 ### Скриншоты дашборда
-
-На всех панелях (CPU, Memory) линии инструментов различаются
-визуально — цвет и стиль заданы в дашборде через `fieldConfig.overrides`:
-
-| Инструмент | Линия |
-|---|---|
-| **BuildKit** (refId A) | зелёная сплошная, толщина 2 |
-| **Kaniko** (refId B) | оранжевая пунктирная, толщина 2 |
-
-Скриншоты складывать в каталог `img/` (по одному на проект, имя файла — по
-имени проекта, например `img/nextjs.png`):
 
 ![nextjs — CPU / Memory](img/nextjs.png)
 
