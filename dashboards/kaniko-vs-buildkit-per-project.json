@@ -59,12 +59,12 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}[1m])) by (pod)",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*buildkit.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}[15s])) by (pod)",
           "legendFormat": "buildkit",
           "refId": "A"
         },
         {
-          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}[1m])) by (pod)",
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}[15s])) by (pod)",
           "legendFormat": "kaniko",
           "refId": "B"
         }
