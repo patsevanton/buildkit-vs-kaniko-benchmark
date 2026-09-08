@@ -229,13 +229,6 @@ buildkit-build:
 
 ### 5. Дашборд в Grafana
 
-Откройте дашборд **«Kaniko vs BuildKit — по проектам»**
-(`UID: kaniko-vs-buildkit-project`) и выберите проект в переменной `$project` —
-панели сравнения **BuildKit** и **Kaniko** (CPU rate, memory working set, время
-сборки build-контейнеров) этого проекта. Проект различается по GitLab project ID
-в имени пода (`runner-…-project-<ID>-concurrent-…`), инструмент — по label `image`
-метрик cAdvisor.
-
 Дашборд: [kaniko-vs-buildkit-per-project.json](https://github.com/patsevanton/buildkit-vs-kaniko-benchmark/blob/main/dashboards/kaniko-vs-buildkit-per-project.json) —
 импортируйте в Grafana вручную (Dashboards → Import → Upload JSON) либо
 применяйте через ConfigMap автоматически (см. `dashboards/README.md`).
@@ -277,8 +270,6 @@ Kaniko и BuildKit в одинаковых условиях кэш-хита.
 
 ### Итоговая сводная таблица (тёплый кэш)
 
-Пайплайны 2026-09-08 (UTC): nextjs `2828297530`, nuxtjs `2828299988`, golang `2828302147`, android `2828303104`, ml-pytorch `2828305777`. CPU — пик `rate(...[15s])` build-контейнера, RAM — пик `container_memory_working_set_bytes`.
-
 | Проект | Время kaniko (с) | Время buildkit (с) | Выигрыш BuildKit % |
 |---|---|---|---|
 | nextjs | 75 | 13 | 83 |
@@ -294,17 +285,6 @@ Kaniko и BuildKit в одинаковых условиях кэш-хита.
 | golang | 0.67 | 0.05 | 88 MiB | 3.2 MiB |
 | android | 1.74 | 0.04 | 1.38 GiB | 3.2 MiB |
 | ml-pytorch | 1.78 | 0.04 | 10.87 GiB | 3.5 MiB |
-
-### Детализация по метрикам (пример на проекте golang)
-
-#### Прогон 2: тёплый кэш
-
-| Метрика | Kaniko | BuildKit |
-|---|---|---|
-| Время сборки (сек) | 33 | 13 |
-| Пиковый CPU (rate, cores) | 0.67 | 0.05 |
-| Пиковая RAM (working set) | 88 MiB | 3.2 MiB |
-| Ошибки/retries | нет | нет |
 
 ## Вывод
 
