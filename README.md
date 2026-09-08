@@ -75,13 +75,7 @@ flowchart TB
 
 ### 1a. Установка GitLab Runner
 
-`<runner-token>` — токен раннера: взять в группе
-`gitlab.com/buildkit-vs-kaniko-benchmark` → **Build → Runners → New group runner**
-(или Settings → CI/CD → Runners). Токен в репозиторий не коммитится.
-
-Helm-чарт `gitlab-runner` (executor kubernetes) ставится в namespace
-`gitlab-runner` (команда установки — в `AGENTS.md`). Конфигурация — в
-`gitlab-runner/values.yaml`:
+Устанавливаем GitLab Runner с такой конфигурацией `values.yaml`:
 
 ```yaml
 gitlabUrl: https://gitlab.com/
