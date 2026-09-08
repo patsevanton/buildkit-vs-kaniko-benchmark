@@ -251,15 +251,25 @@ cAdvisor. Файл `dashboards/kaniko-vs-buildkit-per-project.json` — импо
 
 ### Скриншоты дашборда
 
-![nextjs — CPU / Memory](img/nextjs.png)
+![nextjs — CPU](img/nextjs-cpu.png)
 
-![nuxtjs — CPU / Memory](img/nuxtjs.png)
+![nextjs — Memory](img/nextjs-memory.png)
 
-![golang — CPU / Memory](img/golang.png)
+![nuxtjs — CPU](img/nuxtjs-cpu.png)
 
-![android — CPU / Memory](img/android.png)
+![nuxtjs — Memory](img/nuxtjs-memory.png)
 
-![ml-pytorch — CPU / Memory](img/ml-pytorch.png)
+![golang — CPU](img/golang-cpu.png)
+
+![golang — Memory](img/golang-memory.png)
+
+![android — CPU](img/android-cpu.png)
+
+![android — Memory](img/android-memory.png)
+
+![ml-pytorch — CPU](img/ml-pytorch-cpu.png)
+
+![ml-pytorch — Memory](img/ml-pytorch-memory.png)
 
 ## Как заполнить сводную таблицу результатов
 
