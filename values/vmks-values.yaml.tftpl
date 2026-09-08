@@ -19,7 +19,14 @@ defaultDatasources:
         jsonData:
           httpMethod: POST
           queryTimeout: 300s
-          timeInterval: 30s
+          timeInterval: 5s
+
+# Тёплые джобы часто <30s — при interval 30s cAdvisor даёт 0–1 сэмпл.
+kubelet:
+  vmScrape:
+    spec:
+      interval: 5s
+      scrapeTimeout: 4s
 
 # Отключаем контроль control-plane: Yandex Managed K8s master вне кластера
 # (kube-controller-manager, kube-scheduler, kube-etcd недоступны для скрейпинга).
