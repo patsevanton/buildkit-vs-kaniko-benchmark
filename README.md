@@ -171,8 +171,13 @@ Variables** задать необходимо задать YCR_REGISTRY_ID.
 
 Каждый из 5 проектов — отдельный репозиторий группы. Содержимое (Dockerfile +
 исходники + `.gitlab-ci.yml`) кладётся в корень main-ветки соответствующего
-репозитория. Имена репозиториев: `android`, `golang`, `ml-pytorch`,
-`nextjs`, `nuxtjs`.
+репозитория. Имена репозиториев:
+
+- [`android`](https://gitlab.com/buildkit-vs-kaniko-benchmark/android)
+- [`golang`](https://gitlab.com/buildkit-vs-kaniko-benchmark/golang)
+- [`ml-pytorch`](https://gitlab.com/buildkit-vs-kaniko-benchmark/ml-pytorch)
+- [`nextjs`](https://gitlab.com/buildkit-vs-kaniko-benchmark/nextjs)
+- [`nuxtjs`](https://gitlab.com/buildkit-vs-kaniko-benchmark/nuxtjs)
 
 Эталонный `.gitlab-ci.yml` (одинаков для всех 5 проектов; `$CI_PROJECT_NAME`
 автоматически подставляет имя репозитория):
@@ -228,16 +233,7 @@ buildkit-build:
 `gitlab-runner/values.yaml` (`build_container_security_context`) — в
 `.gitlab-ci.yml` его прописывать не нужно.
 
-### 5. Запуск прогона
-
-Запустите пайплайн в любом репозитории (Push → Pipeline). Пара
-`kaniko+buildkit` выполняется параллельно. Между проектами — независимые
-пайплайны (можно запускать все 5 параллельно).
-
-Длительность сборки каждого инструмента — это длительность соответствующего
-job'а в GitLab (страница пайплайна или GitLab API).
-
-### 6. Дашборд в Grafana
+### 5. Дашборд в Grafana
 
 Откройте дашборд **«Kaniko vs BuildKit — по проектам»**
 (`UID: kaniko-vs-buildkit-project`) и выберите проект в переменной `$project`:
