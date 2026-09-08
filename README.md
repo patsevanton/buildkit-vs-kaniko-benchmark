@@ -75,25 +75,75 @@ flowchart TB
 
 ### 1a. Установка GitLab Runner
 
-```bash
-helm repo add gitlab-runner https://charts.gitlab.io/
-helm repo update
-helm upgrade --install gitlab-runner gitlab-runner/gitlab-runner \
-  --version 0.92.1 \
-  --namespace gitlab-runner \
-  --create-namespace \
-  --values gitlab-runner/values.yaml \
-  --set-string "runnerToken=<runner-token>" \
-  --timeout 10m
-```
-
 `<runner-token>` — токен раннера: взять в группе
 `gitlab.com/buildkit-vs-kaniko-benchmark` → **Build → Runners → New group runner**
 (или Settings → CI/CD → Runners). Токен в репозиторий не коммитится.
 
-Команда ставит helm-чарт `gitlab-runner` (executor kubernetes) в namespace
-`gitlab-runner`. Конфигурация — в `gitlab-runner/values.yaml`. Подробнее —
-`gitlab-runner/README.md`.
+Helm-чарт `gitlab-runner` (executor kubernetes) ставится в namespace
+`gitlab-runner` (команда установки — в `AGENTS.md`). Конфигурация — в
+`gitlab-runner/values.yaml`:
+
+```yaml
+gitlabUrl: https://gitlab.com/
+
+# Количество параллельно выполняемых джобов. Пара kaniko+buildkit одного
+# проекта запускается одновременно (2 джоба), поэтому 2 достаточно.
+concurrent: 2
+
+# RBAC для создания/управления подами джобов.
+rbac:
+  create: true
+  rules: []
+
+serviceAccount:
+  create: true
+
+runners:
+  executor: kubernetes
+  # Тег, по которому джобы в .gitlab-ci.yml выбирают этот раннер.
+  tags: "k8s-benchmark"
+  # Раннер принимает только джобы с указанным тегом.
+  runUntagged: false
+  # Глобальный конфиг executor'а. Задаём лимиты build-контейнера
+  # (те же 4 CPU / 4 GiB, что были у старых K8s-джобов бенчмарка).
+  config: |
+    [[runners]]
+      request_concurrency = 2
+      [runners.kubernetes]
+        namespace = "{{ .Release.Namespace }}"
+        image = "alpine:3.20"
+        cpu_request = "1"
+        cpu_limit = "4"
+        memory_request = "1Gi"
+        memory_limit = "12Gi"
+        helper_cpu_request = "100m"
+        helper_cpu_limit = "500m"
+        helper_memory_request = "128Mi"
+        helper_memory_limit = "512Mi"
+        # Build-контейнер работает без privileged (условия замеров уравнены
+        # с прежним стендом). BuildKit в rootless-режиме требует ослабленный
+        # securityContext: seccomp/apparmor Unconfined (нужен unshare mount ns).
+        privileged = false
+        allow_privilege_escalation = true
+        [runners.kubernetes.build_container_security_context]
+          [runners.kubernetes.build_container_security_context.seccomp_profile]
+            type = "Unconfined"
+          [runners.kubernetes.build_container_security_context.app_armor_profile]
+            type = "Unconfined"
+        # Имена подов джобов важны для Grafana: GitLab Runner включает в них
+        # GitLab project ID (runner-…-project-<ID>-concurrent-…), по которому
+        # дашборд различает проекты, а инструменты различаются по label `image`
+        # метрик cAdvisor (…/kaniko… vs …/buildkit…).
+        pull_policy = "if-not-present"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+```
 
 ### 2. Настройка переменных GitLab CI
 

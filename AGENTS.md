@@ -53,6 +53,24 @@ scripts/run-pipeline-when-idle.sh android --dry-run     # только дожд�
 - Контекст сборки — **сам репозиторий проекта** (Dockerfile + исходники в корне main-ветки). Каждый из 5 проектов — отдельный репозиторий группы `gitlab.com/buildkit-vs-kaniko-benchmark`.
 - Пара `kaniko+buildkit` одного проекта запускается GitLab'ом параллельно (одна стадия в `.gitlab-ci.yml`); между проектами — независимые пайплайны.
 
+## Установка GitLab Runner
+
+```bash
+helm repo add gitlab-runner https://charts.gitlab.io/
+helm repo update
+helm upgrade --install gitlab-runner gitlab-runner/gitlab-runner \
+  --version 0.92.1 \
+  --namespace gitlab-runner \
+  --create-namespace \
+  --values gitlab-runner/values.yaml \
+  --set-string "runnerToken=<runner-token>" \
+  --timeout 10m
+```
+
+`<runner-token>` — токен раннера: взять в группе
+`gitlab.com/buildkit-vs-kaniko-benchmark` → **Build → Runners → New group runner**
+(или Settings → CI/CD → Runners). Токен в репозиторий не коммитится.
+
 ## Установка мониторинга (vmks)
 
 ```bash
