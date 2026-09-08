@@ -245,34 +245,35 @@ buildkit-build:
 Скриншоты сняты на **тёплом прогоне** (с прогретым registry-кэшем) — сравнение
 Kaniko и BuildKit в одинаковых условиях кэш-хита.
 
-![nextjs — CPU](img/nextjs-cpu.png)
+![Next.js — потребление CPU на тёплом кэше](img/nextjs-cpu.png "Next.js — CPU")
+*Next.js — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
 
-![nextjs — Memory](img/nextjs-memory.png)
+![Next.js — потребление памяти на тёплом кэше](img/nextjs-memory.png "Next.js — Memory")
+*Next.js — потребление памяти, тёплый кэш.*
 
-![nuxtjs — CPU](img/nuxtjs-cpu.png)
+![Nuxt 3 — потребление CPU на тёплом кэше](img/nuxtjs-cpu.png "Nuxt 3 — CPU")
+*Nuxt 3 — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
 
-![nuxtjs — Memory](img/nuxtjs-memory.png)
+![Nuxt 3 — потребление памяти на тёплом кэше](img/nuxtjs-memory.png "Nuxt 3 — Memory")
+*Nuxt 3 — потребление памяти, тёплый кэш.*
 
-![golang — CPU](img/golang-cpu.png)
+![Go HTTP-сервис — потребление CPU на тёплом кэше](img/golang-cpu.png "Go — CPU")
+*Go HTTP-сервис — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
 
-![golang — Memory](img/golang-memory.png)
+![Go HTTP-сервис — потребление памяти на тёплом кэше](img/golang-memory.png "Go — Memory")
+*Go HTTP-сервис — потребление памяти, тёплый кэш.*
 
-![android — CPU](img/android-cpu.png)
+![Android APK — потребление CPU на тёплом кэше](img/android-cpu.png "Android — CPU")
+*Android APK — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
 
-![android — Memory](img/android-memory.png)
+![Android APK — потребление памяти на тёплом кэше](img/android-memory.png "Android — Memory")
+*Android APK — потребление памяти, тёплый кэш.*
 
-![ml-pytorch — CPU](img/ml-pytorch-cpu.png)
+![ML: PyTorch inference — потребление CPU на тёплом кэше](img/ml-pytorch-cpu.png "ML: PyTorch — CPU")
+*ML: PyTorch inference — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
 
-![ml-pytorch — Memory](img/ml-pytorch-memory.png)
-
-## Как заполнить сводную таблицу результатов
-
-1. Запустите пайплайн в каждом из 5 репозиториев (первый прогон — холодный кэш).
-2. Зафиксируйте длительность job'ов `kaniko-build` и `buildkit-build` (страница
-   пайплайна в GitLab или API `GET /projects/:id/pipelines/:pipeline_id/jobs`).
-3. Запустите повторный прогон (тёплый кэш) тем же способом — запишите вторые числа.
-4. Снимите CPU/RAM с дашборда Grafana за соответствующий интервал.
-5. Внесите числа в таблицу ниже и сформулируйте вывод.
+![ML: PyTorch inference — потребление памяти на тёплом кэше](img/ml-pytorch-memory.png "ML: PyTorch — Memory")
+*ML: PyTorch inference — потребление памяти, тёплый кэш.*
 
 ### Итоговая сводная таблица (тёплый кэш)
 
