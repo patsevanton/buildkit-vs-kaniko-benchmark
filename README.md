@@ -171,13 +171,7 @@ Variables** задать необходимо задать YCR_REGISTRY_ID.
 
 Каждый из 5 проектов — отдельный репозиторий группы. Содержимое (Dockerfile +
 исходники + `.gitlab-ci.yml`) кладётся в корень main-ветки соответствующего
-репозитория. Имена репозиториев:
-
-- [`android`](https://gitlab.com/buildkit-vs-kaniko-benchmark/android)
-- [`golang`](https://gitlab.com/buildkit-vs-kaniko-benchmark/golang)
-- [`ml-pytorch`](https://gitlab.com/buildkit-vs-kaniko-benchmark/ml-pytorch)
-- [`nextjs`](https://gitlab.com/buildkit-vs-kaniko-benchmark/nextjs)
-- [`nuxtjs`](https://gitlab.com/buildkit-vs-kaniko-benchmark/nuxtjs)
+репозитория.
 
 Эталонный `.gitlab-ci.yml` (одинаков для всех 5 проектов; `$CI_PROJECT_NAME`
 автоматически подставляет имя репозитория):
@@ -236,16 +230,20 @@ buildkit-build:
 ### 5. Дашборд в Grafana
 
 Откройте дашборд **«Kaniko vs BuildKit — по проектам»**
-(`UID: kaniko-vs-buildkit-project`) и выберите проект в переменной `$project`:
-панели для сравнения **BuildKit** и **Kaniko** (CPU rate, memory working set и
-растущее время сборки build-контейнеров) этого проекта. Проект различается по
-GitLab project ID внутри имени пода джоба
-(`runner-…-project-<ID>-concurrent-…`), инструмент — по label `image` метрик
-cAdvisor. Файл `dashboards/kaniko-vs-buildkit-per-project.json` — импортируйте
-его в Grafana вручную (Grafana → Dashboards → Import → Upload JSON), либо
-применяется через ConfigMap-подход автоматически (см. `dashboards/README.md`).
+(`UID: kaniko-vs-buildkit-project`) и выберите проект в переменной `$project` —
+панели сравнения **BuildKit** и **Kaniko** (CPU rate, memory working set, время
+сборки build-контейнеров) этого проекта. Проект различается по GitLab project ID
+в имени пода (`runner-…-project-<ID>-concurrent-…`), инструмент — по label `image`
+метрик cAdvisor.
+
+Дашборд: [kaniko-vs-buildkit-per-project.json](https://github.com/patsevanton/buildkit-vs-kaniko-benchmark/blob/main/dashboards/kaniko-vs-buildkit-per-project.json) —
+импортируйте в Grafana вручную (Dashboards → Import → Upload JSON) либо
+применяйте через ConfigMap автоматически (см. `dashboards/README.md`).
 
 ### Скриншоты дашборда
+
+Скриншоты сняты на **тёплом прогоне** (с прогретым registry-кэшем) — сравнение
+Kaniko и BuildKit в одинаковых условиях кэш-хита.
 
 ![nextjs — CPU](img/nextjs-cpu.png)
 
@@ -297,15 +295,6 @@ cAdvisor. Файл `dashboards/kaniko-vs-buildkit-per-project.json` — импо
 | ml-pytorch | 1.78 | 0.04 | 10.87 GiB | 3.5 MiB |
 
 ### Детализация по метрикам (пример на проекте golang)
-
-#### Прогон 1: холодный кэш
-
-| Метрика | Kaniko | BuildKit |
-|---|---|---|
-| Время сборки (сек) | _заполнить_ | _заполнить_ |
-| Пиковый CPU (rate, cores) | _заполнить_ | _заполнить_ |
-| Пиковая RAM (working set, GiB) | _заполнить_ | _заполнить_ |
-| Ошибки/retries | _заполнить_ | _заполнить_ |
 
 #### Прогон 2: тёплый кэш
 
