@@ -1,4 +1,4 @@
-# Kaniko vs BuildKit в Managed Yandex K8s: что выбрать для сборки образов
+# Kaniko vs BuildKit: замеряем время, CPU и память сборки в кластере
 
 ## Введение
 
