@@ -286,18 +286,3 @@ Kaniko и BuildKit в одинаковых условиях кэш-хита.
 BuildKit на всех пяти проектах держит ~**0.04–0.05 CPU** и **~3 MiB RAM** (уровень простоя контейнера). Это cache hit: слои берутся из registry, локальной сборки нет. Kaniko на том же кэше всё равно грузит CPU (**0.67** на golang, **1.5–1.9** на Node/Android/ML) и держит большой working set: **88 MiB** (golang), **1.2–1.6 GiB** (nextjs/nuxtjs/android), **10.9 GiB** (ml-pytorch).
 
 Следствие по времени: BuildKit укладывается в **13–19 с** на любом профиле; Kaniko — от **33 с** (golang) до **289 с** (ml-pytorch). Разница не в «многопоточности под нагрузкой», а в том, что тёплый кэш BuildKit почти обнуляет работу, а Kaniko продолжает разворачивать слои и жечь CPU/RAM.
-
-## Очистка registry (перед `terraform destroy`)
-
-Скрипт `scripts/delete-registry-images.sh` удаляет все образы (и, опционально,
-репозитории) из Yandex Container Registry через REST API — без CLI `yc`.
-Аутентификация — через IAM-токен:
-
-```bash
-export YC_TOKEN=$(yc iam create-token)
-./scripts/delete-registry-images.sh $(terraform output -raw registry_id) --with-repositories
-```
-
-Флаг `--with-repositories` дополнительно удаляет пустые репозитории реестра
-(иначе `terraform destroy` может упасть на непустом registry). После очистки
-можно выполнять `terraform destroy`.
