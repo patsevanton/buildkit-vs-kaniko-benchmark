@@ -245,35 +245,35 @@ buildkit-build:
 Скриншоты сняты на **тёплом прогоне** (с прогретым registry-кэшем) — сравнение
 Kaniko и BuildKit в одинаковых условиях кэш-хита.
 
-![Next.js — потребление CPU на тёплом кэше](img/nextjs-cpu.png "Next.js — CPU")
 *Next.js — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
+![Next.js — потребление CPU на тёплом кэше](img/nextjs-cpu.png "Next.js — CPU")
 
-![Next.js — потребление памяти на тёплом кэше](img/nextjs-memory.png "Next.js — Memory")
 *Next.js — потребление памяти, тёплый кэш.*
+![Next.js — потребление памяти на тёплом кэше](img/nextjs-memory.png "Next.js — Memory")
 
-![Nuxt 3 — потребление CPU на тёплом кэше](img/nuxtjs-cpu.png "Nuxt 3 — CPU")
 *Nuxt 3 — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
+![Nuxt 3 — потребление CPU на тёплом кэше](img/nuxtjs-cpu.png "Nuxt 3 — CPU")
 
-![Nuxt 3 — потребление памяти на тёплом кэше](img/nuxtjs-memory.png "Nuxt 3 — Memory")
 *Nuxt 3 — потребление памяти, тёплый кэш.*
+![Nuxt 3 — потребление памяти на тёплом кэше](img/nuxtjs-memory.png "Nuxt 3 — Memory")
 
-![Go HTTP-сервис — потребление CPU на тёплом кэше](img/golang-cpu.png "Go — CPU")
 *Go HTTP-сервис — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
+![Go HTTP-сервис — потребление CPU на тёплом кэше](img/golang-cpu.png "Go — CPU")
 
-![Go HTTP-сервис — потребление памяти на тёплом кэше](img/golang-memory.png "Go — Memory")
 *Go HTTP-сервис — потребление памяти, тёплый кэш.*
+![Go HTTP-сервис — потребление памяти на тёплом кэше](img/golang-memory.png "Go — Memory")
 
-![Android APK — потребление CPU на тёплом кэше](img/android-cpu.png "Android — CPU")
 *Android APK — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
+![Android APK — потребление CPU на тёплом кэше](img/android-cpu.png "Android — CPU")
 
-![Android APK — потребление памяти на тёплом кэше](img/android-memory.png "Android — Memory")
 *Android APK — потребление памяти, тёплый кэш.*
+![Android APK — потребление памяти на тёплом кэше](img/android-memory.png "Android — Memory")
 
-![ML: PyTorch inference — потребление CPU на тёплом кэше](img/ml-pytorch-cpu.png "ML: PyTorch — CPU")
 *ML: PyTorch inference — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
+![ML: PyTorch inference — потребление CPU на тёплом кэше](img/ml-pytorch-cpu.png "ML: PyTorch — CPU")
 
-![ML: PyTorch inference — потребление памяти на тёплом кэше](img/ml-pytorch-memory.png "ML: PyTorch — Memory")
 *ML: PyTorch inference — потребление памяти, тёплый кэш.*
+![ML: PyTorch inference — потребление памяти на тёплом кэше](img/ml-pytorch-memory.png "ML: PyTorch — Memory")
 
 ### Итоговая сводная таблица (тёплый кэш)
 
