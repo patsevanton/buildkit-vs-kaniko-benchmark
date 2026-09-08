@@ -169,10 +169,6 @@ Variables** задать необходимо задать YCR_REGISTRY_ID.
 
 ### 4. Перенос проектов в репозитории
 
-Каждый из 5 проектов — отдельный репозиторий группы. Содержимое (Dockerfile +
-исходники + `.gitlab-ci.yml`) кладётся в корень main-ветки соответствующего
-репозитория.
-
 Эталонный `.gitlab-ci.yml` (одинаков для всех 5 проектов; `$CI_PROJECT_NAME`
 автоматически подставляет имя репозитория):
 
@@ -230,8 +226,7 @@ buildkit-build:
 ### 5. Дашборд в Grafana
 
 Дашборд: [kaniko-vs-buildkit-per-project.json](https://github.com/patsevanton/buildkit-vs-kaniko-benchmark/blob/main/dashboards/kaniko-vs-buildkit-per-project.json) —
-импортируйте в Grafana вручную (Dashboards → Import → Upload JSON) либо
-применяйте через ConfigMap автоматически (см. `dashboards/README.md`).
+импортируйте в Grafana вручную (Dashboards → Import → Upload JSON).
 
 ### Скриншоты дашборда
 
