@@ -1,15 +1,15 @@
-# Dashboard бенчмарка Kaniko vs BuildKit
+# Dashboard бенчмарка Kaniko vs BuildKit vs Buildah
 
 `kaniko-vs-buildkit-per-project.json` — Grafana-дашборд с двумя панелями для
-сравнения инструментов (**BuildKit** vs **Kaniko**) **по одному выбранному проекту**:
+сравнения инструментов (**BuildKit** vs **Kaniko** vs **Buildah**) **по одному выбранному проекту**:
 
-- **CPU** — CPU rate (cores) build-контейнеров джобов `buildkit-build` и `kaniko-build`;
+- **CPU** — CPU rate (cores) build-контейнеров джобов `buildkit-build`, `kaniko-build` и `buildah-build`;
 - **Memory** — memory working set (bytes) build-контейнеров.
 
 ## Как различаются инструмент и проект
 
 **Инструмент** — по label `image` метрик cAdvisor
-(`…/moby/buildkit…` vs `…/kaniko-project/executor…`). Поды джобов GitLab Runner
+(`…/moby/buildkit…` vs `…/kaniko-project/executor…` vs `…/buildah…`). Поды джобов GitLab Runner
 (executor kubernetes) создаются в namespace `gitlab-runner` с build-контейнером
 по имени `build`.
 
@@ -61,8 +61,9 @@ Datasource — `VictoriaMetrics` (UID `VictoriaMetrics`).
 
 - Серии визуально различаются на всех панелях через `fieldConfig.overrides`
   (matcher `byFrameRefID`): **buildkit** (refId A) — зелёная сплошная линия,
-  **kaniko** (refId B) — оранжевая пунктирная (`lineStyle.dash`).
-- Легенды серий — `buildkit` / `kaniko`. Если в выбранном тайм-рейндже было
+  **kaniko** (refId B) — оранжевая пунктирная (`lineStyle.dash`),
+  **buildah** (refId C) — синяя точечная (`lineStyle.dot`).
+- Легенды серий — `buildkit` / `kaniko` / `buildah`. Если в выбранном тайм-рейндже было
   несколько прогонов одного проекта, на панели будет несколько серий с одинаковой
   легендой (по одной на под джоба); различать их по времени и по подсказке с
   именем пода (`graphTooltip` = shared crosshair).

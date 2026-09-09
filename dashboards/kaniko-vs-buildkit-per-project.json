@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Сравнение BuildKit и Kaniko по выбранному проекту (переменная $project — GitLab project ID в имени пода джоба).",
+  "description": "Сравнение BuildKit, Kaniko и Buildah по выбранному проекту (переменная $project — GitLab project ID в имени пода джоба).",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -54,6 +54,14 @@
               { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
               { "id": "custom.lineWidth", "value": 2 }
             ]
+          },
+          {
+            "matcher": { "id": "byFrameRefID", "options": "C" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } },
+              { "id": "custom.lineStyle", "value": { "fill": "dot", "dash": [2, 4] } },
+              { "id": "custom.lineWidth", "value": 2 }
+            ]
           }
         ]
       },
@@ -67,6 +75,11 @@
           "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}[15s])) by (pod)",
           "legendFormat": "kaniko",
           "refId": "B"
+        },
+        {
+          "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"gitlab-runner\", image=~\".*buildah.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}[15s])) by (pod)",
+          "legendFormat": "buildah",
+          "refId": "C"
         }
       ],
       "title": "CPU",
@@ -109,6 +122,14 @@
               { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
               { "id": "custom.lineWidth", "value": 2 }
             ]
+          },
+          {
+            "matcher": { "id": "byFrameRefID", "options": "C" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } },
+              { "id": "custom.lineStyle", "value": { "fill": "dot", "dash": [2, 4] } },
+              { "id": "custom.lineWidth", "value": 2 }
+            ]
           }
         ]
       },
@@ -122,6 +143,11 @@
           "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*kaniko.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}) by (pod)",
           "legendFormat": "kaniko",
           "refId": "B"
+        },
+        {
+          "expr": "sum(container_memory_working_set_bytes{namespace=\"gitlab-runner\", image=~\".*buildah.*\", container=\"build\", pod=~\".*-project-$project-concurrent-.*\"}) by (pod)",
+          "legendFormat": "buildah",
+          "refId": "C"
         }
       ],
       "title": "Memory",
@@ -130,7 +156,7 @@
   ],
   "refresh": "10s",
   "schemaVersion": 39,
-  "tags": ["kaniko", "buildkit", "benchmark", "gitlab-runner"],
+  "tags": ["kaniko", "buildkit", "buildah", "benchmark", "gitlab-runner"],
   "templating": {
     "list": [
       {
@@ -154,7 +180,7 @@
     ]
   },
   "time": { "from": "now-1h", "to": "now" },
-  "title": "Kaniko vs BuildKit — по проектам",
+  "title": "Kaniko vs BuildKit vs Buildah — по проектам",
   "uid": "kaniko-vs-buildkit-project",
   "version": 1,
   "weekStart": ""

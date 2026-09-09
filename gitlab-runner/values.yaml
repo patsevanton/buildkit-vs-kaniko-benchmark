@@ -1,8 +1,8 @@
 gitlabUrl: https://gitlab.com/
 
-# Количество параллельно выполняемых джобов. Пара kaniko+buildkit одного
-# проекта запускается одновременно (2 джоба), поэтому 2 достаточно.
-concurrent: 2
+# Количество параллельно выполняемых джобов. Тройка kaniko+buildkit+buildah
+# одного проекта запускается одновременно (3 джоба), поэтому 3 достаточно.
+concurrent: 3
 
 # RBAC для создания/управления подами джобов.
 rbac:
@@ -22,7 +22,7 @@ runners:
   # (те же 4 CPU / 4 GiB, что были у старых K8s-джобов бенчмарка).
   config: |
     [[runners]]
-      request_concurrency = 2
+      request_concurrency = 3
       [runners.kubernetes]
         namespace = "{{ .Release.Namespace }}"
         image = "alpine:3.20"
@@ -38,7 +38,6 @@ runners:
         # с прежним стендом). BuildKit в rootless-режиме требует ослабленный
         # securityContext: seccomp/apparmor Unconfined (нужен unshare mount ns).
         privileged = false
-        allow_privilege_escalation = true
         [runners.kubernetes.build_container_security_context]
           [runners.kubernetes.build_container_security_context.seccomp_profile]
             type = "Unconfined"
@@ -47,7 +46,7 @@ runners:
         # Имена подов джобов важны для Grafana: GitLab Runner включает в них
         # GitLab project ID (runner-…-project-<ID>-concurrent-…), по которому
         # дашборд различает проекты, а инструменты различаются по label `image`
-        # метрик cAdvisor (…/kaniko… vs …/buildkit…).
+        # метрик cAdvisor (…/kaniko… vs …/buildkit… vs …/buildah…).
         pull_policy = "if-not-present"
 
 resources:

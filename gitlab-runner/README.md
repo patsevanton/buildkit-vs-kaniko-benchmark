@@ -7,8 +7,8 @@
 
 Официальный [helm-чарт GitLab Runner](https://gitlab.com/gitlab-org/charts/gitlab-runner)
 с executor **kubernetes**: для каждого CI-джоба раннер создаёт отдельный под в
-namespace `gitlab-runner`. Именно в этом поде выполняется `kaniko-build` или
-`buildkit-build` (см. `.gitlab-ci.yml` в репозиториях проектов).
+namespace `gitlab-runner`. Именно в этом поде выполняется `kaniko-build`,
+`buildkit-build` или `buildah-build` (см. `.gitlab-ci.yml` в репозиториях проектов).
 
 Метрики CPU/RAM этих подов снимает cAdvisor (через vmks) — они попадают в
 VictoriaMetrics и отображаются в Grafana.
@@ -60,7 +60,7 @@ kubectl -n gitlab-runner logs deploy/gitlab-runner
 | Параметр | Значение |
 |---|---|
 | `gitlabUrl` | `https://gitlab.com/` |
-| `concurrent` | `2` (пара kaniko+buildkit одного проекта параллельно) |
+| `concurrent` | `3` (тройка kaniko+buildkit+buildah одного проекта параллельно) |
 | `rbac.create` | `true` (права на создание подов) |
 | `runners.executor` | `kubernetes` |
 | `runners.tags` | `k8s-benchmark` (тег, по которому джобы выбирают раннер) |
@@ -72,7 +72,7 @@ kubectl -n gitlab-runner logs deploy/gitlab-runner
 лимитами старых K8s-джобов бенчмарка — условия замеров сохраняются.
 
 Build-контейнер работает без privileged (`privileged = false`,
-`allow_privilege_escalation = true`) — daemonless-сборка без docker.sock и без
+`allow_privilege_escalation = false`) — daemonless-сборка без docker.sock и без
 privileged-ноды. Для rootless BuildKit build-контейнеру задан ослабленный
 securityContext (`seccompProfile: Unconfined`, `appArmorProfile: Unconfined`),
 Kaniko это не нужно, но условия джобов уравнены.
@@ -83,6 +83,6 @@ Kaniko это не нужно, но условия джобов уравнены
   (в `before_script` каждого job'а) — сервисный аккаунт нод кластера уже имеет
   роли `container-registry.images.pusher/puller` (см. `registry.tf`).
 - Имена подов джобов не важны для Grafana: инструменты различаются по label
-  `image` метрик cAdvisor (`…/moby/buildkit…` vs `…/kaniko-project/executor…`).
+  `image` метрик cAdvisor (`…/moby/buildkit…` vs `…/kaniko-project/executor…` vs `…/buildah…`).
 - Если требуется сменить версию чарта/образа — поменяйте `--version` в команде
   установки (актуальная версия в https://charts.gitlab.io/index.yaml).
