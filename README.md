@@ -243,62 +243,99 @@ buildah-build:
 ### Скриншоты дашборда
 
 Скриншоты сняты на **тёплом прогоне** (с прогретым registry-кэшем) — сравнение
-Kaniko и BuildKit в одинаковых условиях кэш-хита. Серии Buildah появятся после
-прогона тройки инструментов.
+Kaniko, BuildKit и Buildah в одинаковых условиях кэш-хита.
 
-*Next.js — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
+*Next.js — потребление CPU (Kaniko, BuildKit, Buildah), тёплый кэш.*
 ![Next.js — потребление CPU на тёплом кэше](img/nextjs-cpu.png "Next.js — CPU")
 
 *Next.js — потребление памяти, тёплый кэш.*
 ![Next.js — потребление памяти на тёплом кэше](img/nextjs-memory.png "Next.js — Memory")
 
-*Nuxt 3 — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
+*Nuxt 3 — потребление CPU (Kaniko, BuildKit, Buildah), тёплый кэш.*
 ![Nuxt 3 — потребление CPU на тёплом кэше](img/nuxtjs-cpu.png "Nuxt 3 — CPU")
 
 *Nuxt 3 — потребление памяти, тёплый кэш.*
 ![Nuxt 3 — потребление памяти на тёплом кэше](img/nuxtjs-memory.png "Nuxt 3 — Memory")
 
-*Go HTTP-сервис — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
+*Go HTTP-сервис — потребление CPU (Kaniko, BuildKit, Buildah), тёплый кэш.*
 ![Go HTTP-сервис — потребление CPU на тёплом кэше](img/golang-cpu.png "Go — CPU")
 
 *Go HTTP-сервис — потребление памяти, тёплый кэш.*
 ![Go HTTP-сервис — потребление памяти на тёплом кэше](img/golang-memory.png "Go — Memory")
 
-*Android APK — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
+*Android APK — потребление CPU (Kaniko, BuildKit, Buildah), тёплый кэш.*
 ![Android APK — потребление CPU на тёплом кэше](img/android-cpu.png "Android — CPU")
 
 *Android APK — потребление памяти, тёплый кэш.*
 ![Android APK — потребление памяти на тёплом кэше](img/android-memory.png "Android — Memory")
 
-*ML: PyTorch inference — потребление CPU (BuildKit слева, Kaniko справа), тёплый кэш.*
+*ML: PyTorch inference — потребление CPU (Kaniko, BuildKit, Buildah), тёплый кэш.*
 ![ML: PyTorch inference — потребление CPU на тёплом кэше](img/ml-pytorch-cpu.png "ML: PyTorch — CPU")
 
 *ML: PyTorch inference — потребление памяти, тёплый кэш.*
 ![ML: PyTorch inference — потребление памяти на тёплом кэше](img/ml-pytorch-memory.png "ML: PyTorch — Memory")
 
-### Итоговая сводная таблица (тёплый кэш)
+### Итоговые сводные таблицы
 
-Цифры ниже — прогон Kaniko vs BuildKit. Колонка Buildah будет заполнена после
-прогона тройки инструментов.
+Цифры ниже — **тёплый прогон** (с прогретым registry-кэшем) тройки
+Kaniko / BuildKit / Buildah по всем пяти проектам. Время сборки = длительность
+job в GitLab; CPU/RAM сняты cAdvisor'ом (VictoriaMetrics) с build-контейнеров
+в namespace `gitlab-runner`.
 
-| Проект | Время kaniko (с) | Время buildkit (с) | Выигрыш BuildKit % |
+#### Время сборки (тёплый кэш)
+
+| Проект | Kaniko (с) | BuildKit (с) | Buildah (с) | Выигрыш BuildKit vs Kaniko % | Выигрыш BuildKit vs Buildah % |
+|---|---|---|---|---|---|
+| nextjs | 74 | 14 | 287 | 81 | 95 |
+| nuxtjs | 52 | 14 | 192 | 73 | 93 |
+| golang | 31 | 13 | 237 | 58 | 95 |
+| android | 90 | 10 | 21 | 89 | 53 |
+| ml-pytorch | 295 | 15 | 536 | 95 | 97 |
+
+#### Время сборки (холодный кэш)
+
+| Проект | Kaniko (с) | BuildKit (с) | Buildah (с) |
 |---|---|---|---|
-| nextjs | 75 | 13 | 83 |
-| nuxtjs | 50 | 13 | 74 |
-| golang | 33 | 13 | 61 |
-| android | 109 | 14 | 87 |
-| ml-pytorch | 289 | 19 | 93 |
+| nextjs | 118 | 145 | 360 |
+| nuxtjs | 69 | 71 | 212 |
+| golang | 57 | 62 | 282 |
+| android | 213 | 12 | 28 |
+| ml-pytorch | 451 | 310 | 770 |
 
-| Проект | CPU kaniko (cores) | CPU buildkit (cores) | RAM kaniko | RAM buildkit |
-|---|---|---|---|---|
-| nextjs | 1.94 | 0.04 | 1.55 GiB | 3.2 MiB |
-| nuxtjs | 1.52 | 0.04 | 1.18 GiB | 3.5 MiB |
-| golang | 0.67 | 0.05 | 88 MiB | 3.2 MiB |
-| android | 1.74 | 0.04 | 1.38 GiB | 3.2 MiB |
-| ml-pytorch | 1.78 | 0.04 | 10.87 GiB | 3.5 MiB |
+#### CPU и RAM (тёплый кэш)
+
+| Проект | CPU kaniko (cores) | CPU buildkit (cores) | CPU buildah (cores) | RAM kaniko | RAM buildkit | RAM buildah |
+|---|---|---|---|---|---|---|
+| nextjs | 0.47 | 0.01 | 0.26 | 2.03 GiB | 3.2 MiB | 5.30 GiB |
+| nuxtjs | 0.36 | 0.02 | 0.28 | 912 MiB | 3.5 MiB | 4.00 GiB |
+| golang | 0.23 | 0.01 | 0.25 | 124 MiB | 3.1 MiB | 4.19 GiB |
+| android | 0.64 | 0.01 | 0.25 | 1.18 GiB | 3.5 MiB | 108 MiB |
+| ml-pytorch | 0.64 | 0.01 | 0.26 | 10.88 GiB | 3.2 MiB | 5.56 GiB |
 
 ## Вывод
 
-BuildKit на всех пяти проектах держит ~**0.04–0.05 CPU** и **~3 MiB RAM** (уровень простоя контейнера). Это cache hit: слои берутся из registry, локальной сборки нет. Kaniko на том же кэше всё равно грузит CPU (**0.67** на golang, **1.5–1.9** на Node/Android/ML) и держит большой working set: **88 MiB** (golang), **1.2–1.6 GiB** (nextjs/nuxtjs/android), **10.9 GiB** (ml-pytorch).
+На **тёплом кэше** BuildKit почти обнуляет работу: ~**0.01 CPU** и **~3 MiB RAM**
+(уровень простоя контейнера) на всех пяти проектах — слои берутся из registry,
+локальной сборки нет. Отсюда и время: **10–15 с** независимо от профиля.
 
-Следствие по времени: BuildKit укладывается в **13–19 с** на любом профиле; Kaniko — от **33 с** (golang) до **289 с** (ml-pytorch). Разница не в «многопоточности под нагрузкой», а в том, что тёплый кэш BuildKit почти обнуляет работу, а Kaniko продолжает разворачивать слои и жечь CPU/RAM.
+**Kaniko** на том же кэше продолжает разворачивать слои и жечь ресурсы:
+CPU **0.23–0.64** cores, working set от **124 MiB** (golang) до **10.88 GiB**
+(ml-pytorch), время — **31–295 с**. Выигрыш BuildKit по времени — **58–95 %**.
+
+**Buildah** (rootless `bud --layers` c `--cache-from`/`--cache-to`, storage-драйвер
+`vfs`) попадает в зависимость от профиля: на android — **21 с** (кэш слоёв
+Gradle-сборки), на Node/ML — **192–536 с**, CPU **0.25–0.28** cores. Большой
+working set (**4–5.6 GiB**) — следствие `vfs`: каждый слой копируется в отдельное
+дерево вместо overlay-mount. На «тяжёлых» Node/ML-профилях Buildah заметно
+проигрывает BuildKit и по времени (разрыв до **97 %**), и по памяти.
+
+**Холодный кэш** уравнивает тройку: все качают слои и собирают с нуля. Здесь
+разброс меньше, но BuildKit стабильно быстрее на профилях с большим числом слоёв
+в кэше (android **12 с** против **213 с** у Kaniko — Gradle-слои переиспользуются
+из кэша), а на ML всё упирается в скачивание ~1.3 ГБ весов (Kaniko **451 с**,
+BuildKit **310 с**, Buildah **770 с**).
+
+**Итог:** для сборки в кластере без privileged и с registry-кэшем BuildKit
+выигрывает по всем осям — минимальные CPU/RAM и стабильно малое время на тёплом
+кэше. Kaniko держит больший working set и дольше «додумывает» слои на кэш-хите.
+Buildah с `vfs` — самый тяжёлый по памяти и сильно зависит от профиля сборки.
