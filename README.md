@@ -224,6 +224,14 @@ buildah-build:
 
 `--layers` у Buildah обязателен: без него `--cache-from` / `--cache-to` игнорируются.
 
+Buildah разделяет сборку и доставку на две команды (`buildah bud` → `buildah push`)
+из-за своей архитектуры, отличной от Kaniko. Kaniko — специализированный сборщик:
+у него нет локального хранилища образов, и он стримит слои напрямую в registry через
+`--destination`. Buildah — daemonless-инструмент общего назначения: `buildah bud`
+только собирает образ в локальное контейнерное хранилище (в этом стенде — `vfs`,
+`STORAGE_DRIVER=vfs`) и никуда его не отправляет; перенос готового образа в registry —
+отдельный шаг `buildah push`.
+
 У **android** destination/push финального image отключается, registry-кэш слоёв остаётся:
 
 - Kaniko: `--no-push`
