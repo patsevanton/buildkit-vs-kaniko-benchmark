@@ -10,9 +10,9 @@ Kubernetes executor с **Kaniko**, **BuildKit** или **Buildah** лишён э
 - **BuildKit** ([moby/buildkit](https://github.com/moby/buildkit)) — стандартный движок `docker build`, работающий в k8s в daemonless и rootless-режиме без привилегий ноды.
 - **Buildah** ([containers/buildah](https://github.com/podman-container-tools/buildah)) — daemonless-сборка OCI-образов (`buildah bud`) без Docker-демона. В этом стенде — образ `quay.io/buildah/stable:v1.43.2`, rootless `bud` с `--layers` и registry-кэшем (`--cache-from` / `--cache-to`).
 
-**DinD не используется.** Docker-in-Docker требует `privileged = true`. В GitLab Runner (kubernetes executor) флаг `privileged` задаётся на уровне раннера, а не джоба: для DinD пришлось бы заводить **отдельный** GitLab Runner с `privileged = true` и другим тегом. Текущий раннер `k8s-benchmark` держит `privileged = false` — иначе условия замеров Kaniko / BuildKit / Buildah ломаются. Стенд выбран как раз ради сборки без привилегий.
-
 В этой статье будет протестировано **5 проектов** разных языков и фреймворков, которые собираются тремя инструментами в одних и тех же условиях, с замером времени, потребления CPU/RAM и поведения кэша. В конце — **итоговая сводная таблица** и разбор **преимуществ и недостатков** каждого подхода для продакшна.
+
+**DinD не используется.** Docker-in-Docker требует `privileged = true`. В GitLab Runner (kubernetes executor) флаг `privileged` задаётся на уровне раннера, а не джоба: для DinD пришлось бы заводить **отдельный** GitLab Runner с `privileged = true` и другим тегом. Текущий раннер `k8s-benchmark` держит `privileged = false` — иначе условия замеров Kaniko / BuildKit / Buildah ломаются. Стенд выбран как раз ради сборки без привилегий.
 
 **Кэш.** Все три инструмента используют только registry-кэш. Локальный кэш на ноде намеренно не используется — он копится на диске и требует очистки. Registry-кэш чистить не нужно: манифест кэша перезаписывается на каждом прогоне, а мусор подчищает garbage collection реестра. Хранясь вне пода, он переживает пересоздание и смену ноды.
 
